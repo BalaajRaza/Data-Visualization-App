@@ -1,0 +1,5 @@
+viz_app/
+__pycache__/
+*.pyc
+.env
+ehs.sql
