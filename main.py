@@ -4,6 +4,10 @@ from sql_connector import get_connection
 from PIL import Image
 import numpy as np
 
+import matplotlib
+matplotlib.use('Agg')  # Fixes GUI thread issues
+import matplotlib.pyplot as plt
+
 
 filter_state = {
     "year": None,
@@ -32,6 +36,7 @@ def get_filter_options():
     injured_vals = fetch_values("SELECT DISTINCT injured FROM incidents")
     days_lost_vals = fetch_values("SELECT DISTINCT days_lost FROM incidents")
 
+    months = sorted(months, key=lambda x: int(x))
     cursor.close()
     conn.close()
 
@@ -138,6 +143,26 @@ def update_kpis_with_filters():
     dpg.set_item_label("kpi_injury_rate", f"{kpi['injury_rate']}%\nInjury Rate")
     dpg.set_item_label("kpi_common_type", f"{kpi['common_type']}\nTop Incident")
 
+    update_applied_filters()
+    show_all_graphs()
+    
+def update_applied_filters():
+    if dpg.does_item_exist("applied_filter_group"):
+        dpg.delete_item("applied_filter_group", children_only=True)
+
+        applied = [f"{key.replace('_', ' ').capitalize()}: {value}"
+                   for key, value in filter_state.items() if value]
+
+        if applied:
+            combined = " | ".join(applied)
+        else:
+            combined = "None"
+
+        dpg.add_text(combined, color=(0, 80, 40), parent="applied_filter_group")
+    
+
+
+
 # Create filter dropdowns (call this during GUI setup)
 def create_filter_controls():
     filter_options = get_filter_options()
@@ -185,7 +210,255 @@ def clear_filters():
     # Refresh KPI cards
     update_kpis_with_filters()
 
+# --------------------------------------------------------#
+#                       GRAPHS SETUP                      # 
+# --------------------------------------------------------#
 
+def fetch_incidents_over_time():
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    base_query = """
+        SELECT DATE_FORMAT(inc_date, '%Y-%m') as month, COUNT(*) as incident_count
+        FROM incidents
+        WHERE 1=1
+    """
+    params = []
+
+    # Append filters
+    if filter_state["year"] and filter_state["year"] != "None":
+        base_query += " AND YEAR(inc_date) = %s"
+        params.append(int(filter_state["year"]))
+
+    if filter_state["month"] and filter_state["month"] != "None":
+        base_query += " AND MONTH(inc_date) = %s"
+        params.append(int(filter_state["month"]))
+
+    if filter_state["department"] and filter_state["department"] != "None":
+        base_query += " AND department = %s"
+        params.append(filter_state["department"])
+
+    if filter_state["incident_type"] and filter_state["incident_type"] != "None":
+        base_query += " AND incident_type = %s"
+        params.append(filter_state["incident_type"])
+
+    if filter_state["severity"] and filter_state["severity"] != "None":
+        base_query += " AND severity = %s"
+        params.append(int(filter_state["severity"]))
+
+    if filter_state["injured"] and filter_state["injured"] != "None":
+        base_query += " AND injured = %s"
+        params.append(int(filter_state["injured"]))
+
+    if filter_state["days_lost"] and filter_state["days_lost"] != "None":
+        base_query += " AND days_lost = %s"
+        params.append(int(filter_state["days_lost"]))
+
+    base_query += " GROUP BY month ORDER BY month"
+
+    cursor.execute(base_query, params)
+    results = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    if results:
+        months, counts = zip(*results)
+        return list(months), list(counts)
+    return [], []
+
+def fetch_dept_vs_severity():
+    conn = get_connection()
+    cursor = conn.cursor()
+    base_query = """
+        SELECT department, severity, COUNT(*) 
+        FROM incidents
+        WHERE 1=1
+    """
+    params = []
+
+    # Append filters
+    if filter_state["year"] and filter_state["year"] != "None":
+        base_query += " AND YEAR(inc_date) = %s"
+        params.append(int(filter_state["year"]))
+
+    if filter_state["month"] and filter_state["month"] != "None":
+        base_query += " AND MONTH(inc_date) = %s"
+        params.append(int(filter_state["month"]))
+
+    if filter_state["department"] and filter_state["department"] != "None":
+        base_query += " AND department = %s"
+        params.append(filter_state["department"])
+
+    if filter_state["incident_type"] and filter_state["incident_type"] != "None":
+        base_query += " AND incident_type = %s"
+        params.append(filter_state["incident_type"])
+
+    if filter_state["severity"] and filter_state["severity"] != "None":
+        base_query += " AND severity = %s"
+        params.append(int(filter_state["severity"]))
+
+    if filter_state["injured"] and filter_state["injured"] != "None":
+        base_query += " AND injured = %s"
+        params.append(int(filter_state["injured"]))
+
+    if filter_state["days_lost"] and filter_state["days_lost"] != "None":
+        base_query += " AND days_lost = %s"
+        params.append(int(filter_state["days_lost"]))
+    
+    base_query += " GROUP BY department, severity ORDER BY department, severity"
+    cursor.execute(base_query, params)
+    data = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return data
+
+def fetch_incident_type_vs_severity():
+    conn = get_connection()
+    cursor = conn.cursor()
+    query = """
+        SELECT incident_type, severity, COUNT(*) 
+        FROM incidents
+        WHERE 1=1
+    """
+    params = []
+
+    for key, field in [
+        ("year", "YEAR(inc_date)"), ("month", "MONTH(inc_date)"),
+        ("department", "department"), ("incident_type", "incident_type"),
+        ("injured", "injured"), ("days_lost", "days_lost")
+    ]:
+        if filter_state[key] and filter_state[key] != "None":
+            query += f" AND {field} = %s"
+            params.append(int(filter_state[key]) if key in ["year", "month", "injured", "days_lost"] else filter_state[key])
+
+    query += " GROUP BY incident_type, severity ORDER BY incident_type, severity"
+    cursor.execute(query, params)
+    data = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return data
+
+
+
+def fetch_severity_vs_days_lost():
+    conn = get_connection()
+    cursor = conn.cursor()
+    query = """
+        SELECT severity, SUM(days_lost) 
+        FROM incidents
+        WHERE 1=1
+    """
+    params = []
+
+    for key, field in [
+        ("year", "YEAR(inc_date)"), ("month", "MONTH(inc_date)"),
+        ("department", "department"), ("incident_type", "incident_type"),
+        ("injured", "injured")
+    ]:
+        if filter_state[key]:
+            query += f" AND {field} = %s"
+            params.append(int(filter_state[key]) if key in ["year", "month", "injured"] else filter_state[key])
+
+    query += " GROUP BY severity ORDER BY severity"
+    cursor.execute(query, params)
+    data = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return data
+
+def plot_all_graphs():
+    months, counts = fetch_incidents_over_time()
+    dept_data = fetch_dept_vs_severity()
+    type_data = fetch_incident_type_vs_severity()
+    sev_days_data = fetch_severity_vs_days_lost()
+
+    fig, axs = plt.subplots(2, 2, figsize=(16, 12))
+    fig.tight_layout(pad=8.0)  # Increase spacing between graphs
+
+    # Plot 1: Incidents vs Time
+    if months:
+        axs[0, 0].plot(months, counts, marker='o', color='#009966')
+        axs[0, 0].set_title("Incidents Over Time", fontsize=12, color='#004d33')
+        axs[0, 0].tick_params(axis='x', rotation=30)
+    else:
+        axs[0, 0].set_title("No Data", fontsize=12)
+    axs[0, 0].set_xlabel("Year-Month")
+    axs[0, 0].set_ylabel("Incident Count")
+    axs[0, 0].grid(True)
+
+    # Plot 2: Department vs Severity
+    if dept_data:
+        import pandas as pd
+        df = pd.DataFrame(dept_data, columns=["Department", "Severity", "Count"])
+        pivot = df.pivot(index="Department", columns="Severity", values="Count").fillna(0)
+        pivot.plot(kind="bar", stacked=True, ax=axs[0, 1], colormap="YlGn")
+        axs[0, 1].set_title("Departments vs Severity", fontsize=12, color='#004d33')
+        axs[0, 1].set_ylabel("Incidents Severity Count")
+        axs[0, 1].legend(title="Severity Level", fontsize=8)
+        axs[0, 1].tick_params(axis='x', rotation=30)
+    else:
+        axs[0, 1].set_title("No Data", fontsize=12)
+
+    # Plot 3: Incident Type vs Severity
+    if type_data:
+        df = pd.DataFrame(type_data, columns=["Incident Type", "Severity", "Count"])
+        pivot = df.pivot(index="Incident Type", columns="Severity", values="Count").fillna(0)
+        pivot.plot(kind="bar", stacked=True, ax=axs[1, 0], colormap="YlGn")
+        axs[1, 0].set_title("Incident Type vs Severity", fontsize=12, color='#004d33')
+        axs[1, 0].set_ylabel("Incidents Severity Count")
+        axs[1, 0].legend(title="Severity Levels", fontsize=8)
+        axs[1, 0].tick_params(axis='x' , rotation=360)
+    else:
+        axs[1, 0].set_title("No Data", fontsize=12)
+
+    # Plot 4: Severity vs Days Lost
+    if sev_days_data:
+        severities, days_lost = zip(*sev_days_data)
+        axs[1, 1].bar(severities, days_lost, color='#004d33')
+        axs[1, 1].set_title("Severity vs Days Lost", fontsize=12, color='#004d33')
+        axs[1, 1].set_xlabel("Severity")
+        axs[1, 1].set_ylabel("Days Lost")
+    else:
+        axs[1, 1].set_title("No Data", fontsize=12)
+
+    plt.savefig("plots.png")
+    plt.close()
+
+def show_all_graphs():
+    plot_all_graphs()
+
+    width, height, channels, data = dpg.load_image("plots.png")
+    print(data)
+
+    # Add or update texture
+    if not dpg.does_item_exist("inc_vs_time_texture"):
+        print("Texture Does not Exits")
+        with dpg.texture_registry(show=False):
+            dpg.add_static_texture(width=width, height=height, default_value=data, tag="inc_vs_time_texture")
+    else:
+        print("Texture Exists")
+        dpg.delete_item("inc_vs_time_texture")
+        dpg.delete_item("inc_vs_time_image")
+            
+        with dpg.texture_registry(show=False):
+            dpg.add_static_texture(width=width, height=height, default_value=data, tag="inc_vs_time_texture")
+
+
+    # Add or update image
+    if not dpg.does_item_exist("inc_vs_time_image"):
+        dpg.add_image("inc_vs_time_texture", width=width, height=height, tag="inc_vs_time_image", parent="graph_container")
+    else:
+        dpg.configure_item("inc_vs_time_image", texture_tag="inc_vs_time_texture", width=width, height=height)
+
+    if not dpg.does_item_exist("graph_bottom_spacer"):
+        dpg.add_spacer(height=100, tag="graph_bottom_spacer", parent="graph_container")
+
+def show_graphs():
+    show_all_graphs()
+
+def refresh():
+    update_kpis_with_filters()
+    show_graphs()
 
 
 dpg.create_context()
@@ -193,11 +466,11 @@ dpg.create_context()
 # Theme setup (Green and White)
 with dpg.theme() as kpi_theme:
     with dpg.theme_component(dpg.mvAll):
-        dpg.add_theme_color(dpg.mvThemeCol_WindowBg, (255, 255, 255), category=dpg.mvThemeCat_Core)
+        dpg.add_theme_color(dpg.mvThemeCol_WindowBg, (240,240,240), category=dpg.mvThemeCat_Core)
         dpg.add_theme_color(dpg.mvThemeCol_Button, (0, 153, 102), category=dpg.mvThemeCat_Core)          
         dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (0, 180, 120), category=dpg.mvThemeCat_Core)
         dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (0, 120, 90), category=dpg.mvThemeCat_Core)
-        dpg.add_theme_color(dpg.mvThemeCol_Text, (0, 60, 40), category=dpg.mvThemeCat_Core)
+        dpg.add_theme_color(dpg.mvThemeCol_Text, (255, 255, 255), category=dpg.mvThemeCat_Core)
         dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 8)
         dpg.add_theme_style(dpg.mvStyleVar_WindowRounding, 10)
         dpg.add_theme_style(dpg.mvStyleVar_ItemSpacing, 10, 10)
@@ -213,32 +486,51 @@ with dpg.theme() as combo_theme:
         dpg.add_theme_color(dpg.mvThemeCol_PopupBg, (240, 255, 240), category=dpg.mvThemeCat_Core)        # List background
         dpg.add_theme_color(dpg.mvThemeCol_Header, (200, 240, 200), category=dpg.mvThemeCat_Core)         # Hovered option
         dpg.add_theme_color(dpg.mvThemeCol_HeaderHovered, (180, 230, 180), category=dpg.mvThemeCat_Core)  # Hover effect
-        dpg.add_theme_color(dpg.mvThemeCol_HeaderActive, (160, 220, 160), category=dpg.mvThemeCat_Core)   # Clicked effect
+        dpg.add_theme_color(dpg.mvThemeCol_HeaderActive, (160, 220, 160), category=dpg.mvThemeCat_Core)   # Clicked effectwith
 
-        
-        
+
+with dpg.font_registry() as font_reg:
+    large_font = dpg.add_font("RobotoMono-Light.ttf", 32)
+    medium_font = dpg.add_font("RobotoMono-Light.ttf", 24)
+    small_font = dpg.add_font("RobotoMono-Light.ttf", 20)
+
+with dpg.theme() as heading_theme:
+    pass
+    
 
 # Create main window
-with dpg.window(tag="main_window", label="EHS-Incidents", width=1440, height=900, pos=(0, 0)):
+with dpg.window(tag="main_window", label="EHS-Incidents", width=1600, height=900, pos=(0, 0),no_scrollbar=False):
     dpg.bind_item_theme("main_window", kpi_theme)
 
     dpg.add_spacer(height=10)
-    dpg.add_text("EHS - Incident Dashboard", color=(0, 102, 68), bullet=False)
+    dpg.add_text("EHS - Incident Dashboard", tag="main_heading",color=(0, 80, 40),indent=600)
+    dpg.bind_item_font("main_heading", large_font)
+    #dpg.bind_item_theme("main_heading", heading_theme)
+
     dpg.add_separator()
     dpg.add_spacer(height=15)
 
-    dpg.add_text("Apply Filters", color=(50, 50, 50))
+    dpg.add_text("Apply Filters", color=(0, 80, 40),tag="filter_heading")
+    dpg.bind_item_font("filter_heading", medium_font)
     with dpg.group(horizontal=True):
         create_filter_controls()
+    
+    dpg.add_text("Applied Filters:", color=(0, 80, 40), tag="applied_filter_heading")
+    dpg.bind_item_font("applied_filter_heading", small_font)
+
+    with dpg.group(tag="applied_filter_group"):
+        pass 
+        
     
     dpg.add_spacer(height=10)
     dpg.add_button(label="Clear Filters", width=150, callback=clear_filters)
 
     dpg.add_spacer(height=15)
-    dpg.add_text("KPI Overview", color=(0, 80, 40))
+    dpg.add_text("KPI Overview", color=(0, 80, 40),tag="kpi_heading")
+    dpg.bind_item_font("kpi_heading", medium_font)
     dpg.add_spacer(height=10)
 
-    dpg.add_button(label="Refresh KPIs", width=180, callback=update_kpis_with_filters)
+    dpg.add_button(label="Refresh", width=180, callback=refresh)
 
     # KPI Cards
     with dpg.group(horizontal=True):
@@ -246,24 +538,33 @@ with dpg.window(tag="main_window", label="EHS-Incidents", width=1440, height=900
         dpg.add_button(label="\n...\nTotal Injuries", width=200, height=90, tag="kpi_total_injuries")
         dpg.add_button(label="\n...\nDays Lost", width=200, height=90, tag="kpi_days_lost")
         dpg.add_button(label="\n...\nAvg. Severity", width=200, height=90, tag="kpi_avg_severity")
-        dpg.add_button(label="\n...\nHigh Severity", width=200, height=90, tag="kpi_high_severity")
-
-        dpg.add_spacer(height=10)
-    with dpg.group(horizontal=True):
-        
+        dpg.add_button(label="\n...\nHigh Severity Cases", width=200, height=90, tag="kpi_high_severity")
         dpg.add_button(label="\n...\nInjury Rate", width=200, height=90, tag="kpi_injury_rate")
         dpg.add_button(label="\n...\nTop Incident", width=200, height=90, tag="kpi_common_type")
 
+        dpg.bind_item_font("kpi_total_incidents", small_font)
+        dpg.bind_item_font("kpi_total_injuries", small_font)
+        dpg.bind_item_font("kpi_days_lost", small_font)
+        dpg.bind_item_font("kpi_avg_severity", small_font)
+        dpg.bind_item_font("kpi_high_severity", small_font)
+        dpg.bind_item_font("kpi_injury_rate", small_font)
+        dpg.bind_item_font("kpi_common_type", small_font)
+
     
 
+with dpg.group(horizontal=False, tag="graph_container", parent="main_window"):
+    dpg.add_spacer(height=20)
+    dpg.add_text("GRAPHS", color=(0, 80, 40),tag = "graph_heading")
+    dpg.bind_item_font("graph_heading", medium_font)
 
-# Viewport setup
-dpg.create_viewport(title="EHS KPI Dashboard", width=1440, height=900)
+
+dpg.create_viewport(title="EHS KPI Dashboard", width=1440, height=1000)
 dpg.setup_dearpygui()
 dpg.show_viewport()
 
-update_kpis_with_filters()
-
+# update_kpis_with_filters()
+#dpg.set_frame_callback(1, lambda: show_line_plot())
+dpg.set_frame_callback(1, update_kpis_with_filters)
 
 dpg.start_dearpygui()
 dpg.destroy_context()
