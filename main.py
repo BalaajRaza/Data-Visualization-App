@@ -5,8 +5,10 @@ from PIL import Image
 import numpy as np
 
 import matplotlib
-matplotlib.use('Agg')  # Fixes GUI thread issues
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+from matplotlib import cm
 
 
 filter_state = {
@@ -113,7 +115,7 @@ def fetch_kpi_data_with_filters():
         {where_clause};
     """
 
-    cursor.execute(final_query, params * 2)  # Used in main query and subquery
+    cursor.execute(final_query, params * 2) 
     result = cursor.fetchone()
 
     cursor.close()
@@ -396,6 +398,7 @@ def plot_all_graphs():
         axs[0, 1].set_ylabel("Incidents Severity Count")
         axs[0, 1].legend(title="Severity Level", fontsize=8)
         axs[0, 1].tick_params(axis='x', rotation=30)
+        #axs[0,1].grid(True)
     else:
         axs[0, 1].set_title("No Data", fontsize=12)
 
@@ -408,18 +411,57 @@ def plot_all_graphs():
         axs[1, 0].set_ylabel("Incidents Severity Count")
         axs[1, 0].legend(title="Severity Levels", fontsize=8)
         axs[1, 0].tick_params(axis='x' , rotation=360)
+        #axs[1,0].grid(True)
     else:
         axs[1, 0].set_title("No Data", fontsize=12)
 
-    # Plot 4: Severity vs Days Lost
+
     if sev_days_data:
         severities, days_lost = zip(*sev_days_data)
-        axs[1, 1].bar(severities, days_lost, color='#004d33')
+
+        max_sev = max(severities)
+        min_sev = min(severities)
+        norm_severities = [(s - min_sev) / (max_sev - min_sev) if max_sev != min_sev else 0.5 for s in severities]
+
+        cmap = cm.get_cmap('YlGn')
+        colors = [cmap(norm) for norm in norm_severities]
+
+        total_days = sum(days_lost)
+
+        external_labels = [f"{(val/total_days)*100:.1f}% ({val} days)" for val in days_lost]
+
+        axs[1, 1].pie(
+            days_lost,
+            labels=external_labels,
+            labeldistance=1.05,
+            colors=colors,
+            startangle=160,
+            textprops={'fontsize': 10},
+            radius=1.2
+        )
+
         axs[1, 1].set_title("Severity vs Days Lost", fontsize=12, color='#004d33')
-        axs[1, 1].set_xlabel("Severity")
-        axs[1, 1].set_ylabel("Days Lost")
+
+        box = axs[1, 1].get_position()
+        axs[1, 1].set_position([box.x0 - 0.05, box.y0, box.width, box.height])
+
+        legend_patches = [
+            mpatches.Patch(color=colors[i], label=f"{severities[i]}")
+            for i in range(len(severities))
+        ]
+        axs[1, 1].legend(
+            handles=legend_patches,
+            title="Severity Levels",
+            loc='center left',
+            bbox_to_anchor=(1.2, 0.9),
+            fontsize=9,
+            title_fontsize=10
+        )
+
     else:
         axs[1, 1].set_title("No Data", fontsize=12)
+
+
 
     plt.savefig("plots.png")
     plt.close()
@@ -428,15 +470,12 @@ def show_all_graphs():
     plot_all_graphs()
 
     width, height, channels, data = dpg.load_image("plots.png")
-    print(data)
 
     # Add or update texture
     if not dpg.does_item_exist("inc_vs_time_texture"):
-        print("Texture Does not Exits")
         with dpg.texture_registry(show=False):
             dpg.add_static_texture(width=width, height=height, default_value=data, tag="inc_vs_time_texture")
     else:
-        print("Texture Exists")
         dpg.delete_item("inc_vs_time_texture")
         dpg.delete_item("inc_vs_time_image")
             
@@ -451,7 +490,7 @@ def show_all_graphs():
         dpg.configure_item("inc_vs_time_image", texture_tag="inc_vs_time_texture", width=width, height=height)
 
     if not dpg.does_item_exist("graph_bottom_spacer"):
-        dpg.add_spacer(height=100, tag="graph_bottom_spacer", parent="graph_container")
+        dpg.add_spacer(height=0, tag="graph_bottom_spacer", parent="graph_container")
 
 def show_graphs():
     show_all_graphs()
@@ -467,9 +506,9 @@ dpg.create_context()
 with dpg.theme() as kpi_theme:
     with dpg.theme_component(dpg.mvAll):
         dpg.add_theme_color(dpg.mvThemeCol_WindowBg, (240,240,240), category=dpg.mvThemeCat_Core)
-        dpg.add_theme_color(dpg.mvThemeCol_Button, (0, 153, 102), category=dpg.mvThemeCat_Core)          
-        dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (0, 180, 120), category=dpg.mvThemeCat_Core)
-        dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (0, 120, 90), category=dpg.mvThemeCat_Core)
+        dpg.add_theme_color(dpg.mvThemeCol_Button, 	(0, 104, 55), category=dpg.mvThemeCat_Core)          
+        dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered,(0, 120, 55), category=dpg.mvThemeCat_Core)
+        dpg.add_theme_color(dpg.mvThemeCol_ButtonActive,(0, 104, 55) , category=dpg.mvThemeCat_Core)
         dpg.add_theme_color(dpg.mvThemeCol_Text, (255, 255, 255), category=dpg.mvThemeCat_Core)
         dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 8)
         dpg.add_theme_style(dpg.mvStyleVar_WindowRounding, 10)
@@ -534,13 +573,13 @@ with dpg.window(tag="main_window", label="EHS-Incidents", width=1600, height=900
 
     # KPI Cards
     with dpg.group(horizontal=True):
-        dpg.add_button(label="\n...\nTotal Incidents", width=200, height=90, tag="kpi_total_incidents")
-        dpg.add_button(label="\n...\nTotal Injuries", width=200, height=90, tag="kpi_total_injuries")
-        dpg.add_button(label="\n...\nDays Lost", width=200, height=90, tag="kpi_days_lost")
-        dpg.add_button(label="\n...\nAvg. Severity", width=200, height=90, tag="kpi_avg_severity")
-        dpg.add_button(label="\n...\nHigh Severity Cases", width=200, height=90, tag="kpi_high_severity")
-        dpg.add_button(label="\n...\nInjury Rate", width=200, height=90, tag="kpi_injury_rate")
-        dpg.add_button(label="\n...\nTop Incident", width=200, height=90, tag="kpi_common_type")
+        dpg.add_button(label="\n...\nTotal Incidents", width=210, height=100, tag="kpi_total_incidents")
+        dpg.add_button(label="\n...\nTotal Injuries", width=210, height=100, tag="kpi_total_injuries")
+        dpg.add_button(label="\n...\nDays Lost", width=210, height=100, tag="kpi_days_lost")
+        dpg.add_button(label="\n...\nAvg. Severity", width=210, height=100, tag="kpi_avg_severity")
+        dpg.add_button(label="\n...\nHigh Severity Cases", width=210, height=100, tag="kpi_high_severity")
+        dpg.add_button(label="\n...\nInjury Rate", width=210, height=100, tag="kpi_injury_rate")
+        dpg.add_button(label="\n...\nTop Incident", width=210, height=100, tag="kpi_common_type")
 
         dpg.bind_item_font("kpi_total_incidents", small_font)
         dpg.bind_item_font("kpi_total_injuries", small_font)
