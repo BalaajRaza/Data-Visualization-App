@@ -8,7 +8,17 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
-from matplotlib import cm
+from matplotlib import cm as cm_mpl
+
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
+from reportlab.lib.utils import ImageReader
+from reportlab.lib import colors
+from reportlab.lib.units import cm
+from datetime import datetime
+
+import tkinter as tk
+from tkinter import filedialog
 
 
 filter_state = {
@@ -423,7 +433,7 @@ def plot_all_graphs():
         min_sev = min(severities)
         norm_severities = [(s - min_sev) / (max_sev - min_sev) if max_sev != min_sev else 0.5 for s in severities]
 
-        cmap = cm.get_cmap('YlGn')
+        cmap = cm_mpl.get_cmap('YlGn')
         colors = [cmap(norm) for norm in norm_severities]
 
         total_days = sum(days_lost)
@@ -499,6 +509,147 @@ def refresh():
     update_kpis_with_filters()
     show_graphs()
 
+# --------------------------------------------------------#
+#                      REPORTS SETUP                      # 
+# --------------------------------------------------------#
+
+def generate_pdf_report(kpi_data, filters, generator, graph_path="plots.png", save_as="dashboard_report.pdf"):
+    if generator in ["", " ", None]:
+        generator = "Unknown"
+
+    c = canvas.Canvas(save_as, pagesize=A4)
+    width, height = A4
+
+    # Header background box
+    c.setFillColor(colors.HexColor("#006633"))  # Dark green
+    c.rect(0, height - 60, width, 60, stroke=0, fill=1)
+
+    # Title
+    c.setFont("Helvetica-Bold", 20)
+    c.setFillColor(colors.white)
+    c.drawString(50, height - 40, "EHS Dashboard Report")
+
+    # Reset fill color for body
+    c.setFillColor(colors.black)
+    c.setFont("Helvetica", 12)
+    c.drawString(50, height - 80, f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    c.drawString(50, height - 95, f"Report by: {generator}")
+
+    y = height - 130
+
+    # Section: Filters
+    c.setFillColor(colors.HexColor("#006633"))
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(50, y, "Applied Filters")
+    y -= 15
+    c.setStrokeColor(colors.grey)
+    c.line(50, y, width - 50, y)
+    y -= 20
+    c.setFillColor(colors.black)
+
+    if all(val in [None, "None", ""] for val in filters.values()):
+        c.setFont("Helvetica-Oblique", 12)
+        c.drawString(60, y, "No filters applied.")
+        y -= 20
+    else:
+        c.setFont("Helvetica", 12)
+        for key, val in filters.items():
+            if val:
+                c.drawString(60, y, f"- {key.replace('_', ' ').capitalize()}: {val}")
+                y -= 15
+
+    y -= 10
+
+    # Section: KPIs
+    c.setFillColor(colors.HexColor("#006633"))
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(50, y, "KPI Summary")
+    y -= 15
+    c.line(50, y, width - 50, y)
+    y -= 25
+
+    alt_color = colors.whitesmoke
+    normal_color = colors.white
+    bg = True
+    for label, value in kpi_data.items():
+        if y < 100:  # Add page if nearing bottom
+            c.showPage()
+            y = height - 80
+
+        c.setFillColor(alt_color if bg else normal_color)
+        c.rect(45, y - 3, width - 90, 18, fill=1, stroke=0)
+        c.setFillColor(colors.black)
+        c.setFont("Helvetica", 12)
+        c.drawString(60, y, f"{label.replace('_', ' ').capitalize()}: {value}")
+        y -= 20
+        bg = not bg
+
+    y -= 15
+
+    # Section: Graphs
+    c.setFillColor(colors.HexColor("#006633"))
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(50, y, "Visualizations")
+    y -= 15
+    c.line(50, y, width - 50, y)
+    y -= 30
+
+    try:
+        image = Image.open(graph_path)
+        img_width, img_height = image.size
+        aspect = img_height / img_width
+
+        new_width = width - 100
+        new_height = new_width * aspect
+
+        if new_height > y - 50:
+            new_height = y - 50
+            new_width = new_height / aspect
+
+        c.drawImage(ImageReader(image), 50, y - new_height, width=new_width, height=new_height)
+        y -= new_height + 20
+    except Exception as e:
+        c.setFont("Helvetica", 12)
+        c.setFillColor(colors.red)
+        c.drawString(60, y, f"[Error loading graph image: {e}]")
+
+    # Footer
+    c.setFont("Helvetica-Oblique", 9)
+    c.setFillColor(colors.grey)
+    c.drawString(50, 30, "© EHS Dashboard Report")
+
+    c.setTitle("EHS Dashboard Report")
+    c.save()
+    print(f"[PDF Saved as {save_as}]")
+
+def on_generate_report():
+
+    generator_name = dpg.get_value("report_generator_input")
+    print(generator_name)
+
+    root = tk.Tk()
+    root.withdraw() 
+
+    file_path = filedialog.asksaveasfilename(
+        defaultextension=".pdf",
+        filetypes=[("PDF files", "*.pdf")],
+        title="Save Report As"
+    )
+    root.destroy()
+
+    if file_path:
+        generate_pdf_report(
+            kpi_data=fetch_kpi_data_with_filters(),
+            filters=filter_state,
+            generator=generator_name,
+            graph_path="plots.png",
+            save_as=file_path
+        )
+    dpg.set_value("report_generator_input", "")
+
+
+
+
 
 dpg.create_context()
 
@@ -527,14 +678,21 @@ with dpg.theme() as combo_theme:
         dpg.add_theme_color(dpg.mvThemeCol_HeaderHovered, (180, 230, 180), category=dpg.mvThemeCat_Core)  # Hover effect
         dpg.add_theme_color(dpg.mvThemeCol_HeaderActive, (160, 220, 160), category=dpg.mvThemeCat_Core)   # Clicked effectwith
 
+with dpg.theme() as input_theme:
+    with dpg.theme_component(dpg.mvInputText):
+        dpg.add_theme_color(dpg.mvThemeCol_FrameBg, (225, 255, 225), category=dpg.mvThemeCat_Core)  # light green background
+        dpg.add_theme_color(dpg.mvThemeCol_FrameBgHovered, (230, 250, 230), category=dpg.mvThemeCat_Core)
+        dpg.add_theme_color(dpg.mvThemeCol_FrameBgActive, (220, 245, 220), category=dpg.mvThemeCat_Core)
+        dpg.add_theme_color(dpg.mvThemeCol_Text, (0, 80, 40), category=dpg.mvThemeCat_Core)
+        dpg.add_theme_color(dpg.mvThemeCol_Border, (180, 220, 180), category=dpg.mvThemeCat_Core)
+        dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 6)
+        dpg.add_theme_style(dpg.mvStyleVar_FramePadding, 10, 6)
 
 with dpg.font_registry() as font_reg:
     large_font = dpg.add_font("RobotoMono-Light.ttf", 32)
     medium_font = dpg.add_font("RobotoMono-Light.ttf", 24)
     small_font = dpg.add_font("RobotoMono-Light.ttf", 20)
 
-with dpg.theme() as heading_theme:
-    pass
     
 
 # Create main window
@@ -544,8 +702,7 @@ with dpg.window(tag="main_window", label="EHS-Incidents", width=1600, height=900
     dpg.add_spacer(height=10)
     dpg.add_text("EHS - Incident Dashboard", tag="main_heading",color=(0, 80, 40),indent=600)
     dpg.bind_item_font("main_heading", large_font)
-    #dpg.bind_item_theme("main_heading", heading_theme)
-
+    
     dpg.add_separator()
     dpg.add_spacer(height=15)
 
@@ -589,7 +746,15 @@ with dpg.window(tag="main_window", label="EHS-Incidents", width=1600, height=900
         dpg.bind_item_font("kpi_injury_rate", small_font)
         dpg.bind_item_font("kpi_common_type", small_font)
 
-    
+    dpg.add_spacer(height=10)
+    dpg.add_text("Report Generator Name:", color=(0, 80, 40),tag = "report_generator_label")
+    dpg.bind_item_font("report_generator_label", small_font)
+    dpg.add_input_text(tag="report_generator_input", width=300, hint="Enter your name")
+    dpg.bind_item_theme("report_generator_input", input_theme)
+    dpg.bind_item_font("report_generator_input", small_font)
+
+    dpg.add_button(label="Generate Report", tag="report_button", width=180, height=40, callback=on_generate_report)
+
 
 with dpg.group(horizontal=False, tag="graph_container", parent="main_window"):
     dpg.add_spacer(height=20)
@@ -601,8 +766,6 @@ dpg.create_viewport(title="EHS KPI Dashboard", width=1440, height=1000)
 dpg.setup_dearpygui()
 dpg.show_viewport()
 
-# update_kpis_with_filters()
-#dpg.set_frame_callback(1, lambda: show_line_plot())
 dpg.set_frame_callback(1, update_kpis_with_filters)
 
 dpg.start_dearpygui()
