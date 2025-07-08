@@ -20,6 +20,10 @@ from datetime import datetime
 import tkinter as tk
 from tkinter import filedialog
 
+import requests
+import subprocess
+import time
+
 
 filter_state = {
     "year": None,
@@ -647,8 +651,91 @@ def on_generate_report():
         )
     dpg.set_value("report_generator_input", "")
 
+def run_ollama(prompt):
+    response = requests.post(
+        "http://localhost:11434/api/generate",
+        json={
+            "model": "tinyllama",
+            "prompt": prompt,
+            "stream": False
+        }
+    )
+    result = response.json()
+    return result.get("response", "").strip()
+
+def generate_insights():
+    prompt = "I am providing you some data from a dashboard to visualize incidents data from a mine."
+
+    kpi_data = fetch_kpi_data_with_filters()
+    prompt += "KPIs Data:"
+    for key, value in kpi_data.items():
+        prompt += f"{key.replace('_', ' ').capitalize()}: {value}\n"
+
+    incident_over_time = fetch_incidents_over_time()
+    prompt += f"Incidents Over Time Data: {incident_over_time}\n"
+
+    dept_vs_severity = fetch_dept_vs_severity()
+    prompt += f"Department vs Severity Data: {dept_vs_severity}\n"
+
+    incident_vs_severity = fetch_incident_type_vs_severity()
+    prompt += f"Incident vs Severity Data: {incident_vs_severity}\n"
+
+    incident_vs_dept = fetch_severity_vs_days_lost()
+    prompt += f"Severity vs Days Lost Data: {incident_vs_dept}\n"
+
+    prompt +="""
+    Using all this data generate 3 Intelligent Meaningfull Insights , 
+                Some suggestions and detect any unusual behaviour in the incidents.
+                Provide the response in this format : 
+                Insights:
+                - Insight 1
+                - Insight 2
+                - Insight 3
+                Suggestions:
+                   "Suggestions"
+                Anamolies : 
+                   "Anamolies"
+
+    I want you to write the insights in natural language not numerical data. You can tell like forexample if the number of incidents 
+    is increasing or decreasing, which department are most dangerous or maybe which incident types are more dangerous. Don't stick to
+    to just these insights make your own. Similarly for suggestions you can suggest to the management to take some actions or any suggestion
+    you find useful. For anomalies you can tell if there is any unusual behaviour in the incidents, like if the number of incidents have 
+    increased drastically in the past month or have been completely stopped means incidents are not being reported.
+                """
+    print(f"\n\n{prompt}\n\n")
+
+    response = run_ollama(prompt)
+    print(response)
+
+    # Display Response using DPG
+    if dpg.does_item_exist("ai_analysis_text_block"):
+        dpg.delete_item("ai_analysis_text_block")
+
+    with dpg.group(parent="main_window", tag="ai_analysis_text_block"):
+        dpg.add_text("AI Insights", color=(0, 80, 40))
+        dpg.add_text(response, wrap=1000)
 
 
+def start_ollama_model(model_name="phi"):
+    try:
+        process = subprocess.Popen(
+            ["ollama", "run", model_name],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+        time.sleep(5)
+        print(f"[INFO] Ollama model '{model_name}' started.")
+    except Exception as e:
+        print(f"[ERROR] Failed to start Ollama: {e}")
+
+def is_ollama_running():
+    try:
+        response = requests.get("http://localhost:11434/api/tags")
+        if response.status_code == 200:
+            return True
+    except:
+        return False
+    
 
 
 dpg.create_context()
@@ -760,6 +847,15 @@ with dpg.group(horizontal=False, tag="graph_container", parent="main_window"):
     dpg.add_spacer(height=20)
     dpg.add_text("GRAPHS", color=(0, 80, 40),tag = "graph_heading")
     dpg.bind_item_font("graph_heading", medium_font)
+
+ 
+dpg.add_button(label="Get Insights", tag="insights_button", width=180, height=40, callback=generate_insights, parent="graph_container")
+if dpg.does_item_exist("insights_button"):
+    print("Insights Button Created")
+
+
+if not is_ollama_running():
+    start_ollama_model("tinyllama")
 
 
 dpg.create_viewport(title="EHS KPI Dashboard", width=1440, height=1000)
