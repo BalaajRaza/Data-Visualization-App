@@ -688,25 +688,26 @@ def on_generate_report():
     dpg.set_value("report_generator_input", "")
 
 def run_ollama(prompt):
+    print(prompt)
     response = requests.post(
         "http://localhost:11434/api/generate",
         json={
-            "model": "tinyllama",
+            "model": "mistral",
             "prompt": prompt,
             "stream": False
         }
     )
-    result = response.json()
-    return result.get("response", "").strip()
+    result = response.json().get("response", "").strip()
+    print(result)
+    return result
 
 
 def generate_insights():
     global loader_running
 
-    # Start loader
-    if not dpg.does_item_exist("insights_loader"):
-        dpg.add_text("Generating Insights", tag="insights_loader", color=(0, 80, 40), parent="insights_group")
-        dpg.bind_item_font("insights_loader", small_font)
+    # Show popup immediately
+    dpg.configure_item("insights_popup", show=True)
+    dpg.set_value("popup_insights_text", "Generating Insights...")
 
     loader_running = True
     threading.Thread(target=update_loader_text, daemon=True).start()
@@ -717,74 +718,67 @@ def generate_insights():
         in EHS (Emergency Health System) of a coal mine. You have to understand the patterns in data and perform the told analysis.
         """
 
+        prompt+=f"\nApplied Filters = {filter_state}\n\n"
+
         kpi_data = fetch_kpi_data_with_filters()
-        prompt += "KPIs Data:"
+        prompt += "KPIs Data:\n"
         for key, value in kpi_data.items():
             prompt += f"{key.replace('_', ' ').capitalize()}: {value}\n"
 
         incident_over_time = fetch_incidents_over_time()
-        prompt += f"Incidents Over Time Data: {incident_over_time}\n"
+        prompt += f"\nIncidents Over Time Data (YEAR-MONTH , NO.of INCIDENTS): {incident_over_time}\n\n"
 
         dept_vs_severity = fetch_dept_vs_severity()
-        prompt += f"Department vs Severity Data: {dept_vs_severity}\n"
+        prompt += f"Department vs Severity Data ({"(DEPARTMENT , SEVERITY 1 , No.of Incidents) , (DEPARTMENT , SEVERITY 2 , No.of Incidents)"}): {dept_vs_severity}\n\n"
 
         incident_vs_severity = fetch_incident_type_vs_severity()
-        prompt += f"Incident vs Severity Data: {incident_vs_severity}\n"
+        prompt += f"Incident vs Severity Data({"(INCIDENT TYPE , SEVERITY 1 , No.of Incidents) , (INCIDENT TYPE , SEVERITY 1 , No.of Incidents)"}): {incident_vs_severity}\n\n"
 
-        incident_vs_dept = fetch_severity_vs_days_lost()
-        prompt += f"Severity vs Days Lost Data: {incident_vs_dept}\n"
+        severity_vs_days_lost = fetch_severity_vs_days_lost()
+        prompt += f"Severity vs Days Lost Data (SEVERITY LEVEL , Total Days Lost): {severity_vs_days_lost}\n\n"
 
         prompt +="""
-                Using all this data generate 3 Intelligent Meaningfull Insights , 
-                            Some suggestions and detect any unusual behaviour in the incidents.
-                            Provide the response in this format and strictly follow this format : 
-                            1.Insights:
-                            
-                            2.Suggestions:
-                            
-                            3.Anamolies : 
-                            
-                I want you to write the insights in natural language not numerical data. You can tell like forexample if the number of incidents 
-                is increasing or decreasing, which department are most dangerous or maybe which incident types are more dangerous. Don't stick to
-                to just these insights make your own. Similarly for suggestions you can suggest to the management to take some actions or any suggestion
-                you find useful. For anomalies you can tell if there is any unusual behaviour in the incidents, like if the number of incidents have 
-                increased drastically in the past month or have been completely stopped means incidents are not being reported.
-                """
+Using all this data generate Intelligent Meaningfull Insights and suggestions according to the data or incidents happening
+I want you to write the insights in natural language not numerical data. You can tell like forexample if the number of incidents 
+is increasing or decreasing, which department are most dangerous or maybe which incident types are more dangerous. Don't stick to
+to just these insights make your own. Similarly for suggestions you can suggest to the management to take some actions or any suggestion
+you find useful.
+Provide the response in this format and strictly follow this format : 
+1.Insights:
+
+2.Suggestions:
+
+Add line spaces between different sections so that every section is readible. Also don't write stories just be on point say your thing in one line.
+Keep the insights and suggestions to be on point.
+"""
 
         response = run_ollama(prompt)
+
         if response:
             dpg.set_value("ai_insights_storage", response)
         else:
             dpg.set_value("ai_insights_storage",None)
+
         
         # Stop loader
         global loader_running
         loader_running = False
 
-        # Remove loader
-        if dpg.does_item_exist("insights_loader"):
-            dpg.delete_item("insights_loader")
-
-        # Show results
-        if dpg.does_item_exist("insights_text_box"):
-            dpg.delete_item("insights_text_box")
-
-        dpg.add_text(response, tag="insights_text_box", color=(0, 80, 40), parent="insights_group", wrap=1400)
-        dpg.bind_item_font("insights_text_box", small_font)
+        dpg.set_value("popup_insights_text", response)
 
     threading.Thread(target=generate, daemon=True).start()
 
 
 def update_loader_text():
     count = 0
-    while loader_running and dpg.does_item_exist("insights_loader"):
+    while loader_running and dpg.does_item_exist("popup_insights_text"):
         dots = "." * (count % 4)
-        dpg.set_value("insights_loader", f"Generating Insights{dots}")
+        dpg.set_value("popup_insights_text", f"Generating Insights{dots}")
         time.sleep(0.5)
         count += 1
 
 
-def start_ollama_model(model_name="phi"):
+def start_ollama_model(model_name = "mistral"):
     try:
         process = subprocess.Popen(
             ["ollama", "run", model_name],
@@ -792,7 +786,7 @@ def start_ollama_model(model_name="phi"):
             stderr=subprocess.DEVNULL
         )
         time.sleep(5)
-        print(f"[INFO] Ollama model '{model_name}' started.")
+        print(f"\n[INFO] Ollama model '{model_name}' started.\n")
     except Exception as e:
         print(f"[ERROR] Failed to start Ollama: {e}")
 
@@ -800,8 +794,10 @@ def is_ollama_running():
     try:
         response = requests.get("http://localhost:11434/api/tags")
         if response.status_code == 200:
+            print("ollama running")
             return True
     except:
+        print("ollama not running")
         return False
     
 
@@ -842,6 +838,14 @@ with dpg.theme() as input_theme:
         dpg.add_theme_color(dpg.mvThemeCol_Border, (180, 220, 180), category=dpg.mvThemeCat_Core)
         dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 6)
         dpg.add_theme_style(dpg.mvStyleVar_FramePadding, 10, 6)
+
+with dpg.theme() as popup_theme:
+    with dpg.theme_component(dpg.mvAll):
+        dpg.add_theme_color(dpg.mvThemeCol_WindowBg, (240, 255, 240), category=dpg.mvThemeCat_Core)  # light greenish-white
+        dpg.add_theme_color(dpg.mvThemeCol_Text, (0, 80, 40), category=dpg.mvThemeCat_Core)  # deep green text
+        dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 8)
+        dpg.add_theme_style(dpg.mvStyleVar_WindowRounding, 10)
+        dpg.add_theme_style(dpg.mvStyleVar_ItemSpacing, 10, 10)
 
 with dpg.font_registry() as font_reg:
     large_font = dpg.add_font("RobotoMono-Light.ttf", 32)
@@ -912,6 +916,13 @@ with dpg.window(tag="main_window", label="EHS-Incidents", width=1600, height=900
 
     dpg.add_text("" , tag="ai_insights_storage" , show = False)
 
+if dpg.does_item_exist("insights_popup"):
+    dpg.delete_item("insights_popup")
+with dpg.window(tag="insights_popup", label="AI Insights", width=800, height=450, pos=(300, 100), show=False, no_close=False):
+    dpg.bind_item_theme("insights_popup", popup_theme)
+    dpg.add_text("", tag="popup_insights_text", wrap=750)
+    dpg.bind_item_font("popup_insights_text", small_font)
+
 with dpg.group(horizontal=False , tag="insights_group" , parent="main_window"):
     dpg.add_spacer(height=20)
     dpg.add_text("Insights", color=(0, 80, 40),tag = "insights_heading")
@@ -920,20 +931,22 @@ with dpg.group(horizontal=False , tag="insights_group" , parent="main_window"):
     dpg.add_spacer(height=10)
     dpg.add_button(label="Get Insights", tag="insights_button", width=180, height=40, callback=generate_insights)
 
-
 with dpg.group(horizontal=False, tag="graph_container", parent="main_window"):
     dpg.add_spacer(height=20)
     dpg.add_text("GRAPHS", color=(0, 80, 40),tag = "graph_heading")
     dpg.bind_item_font("graph_heading", medium_font)
 
 
+
 if not is_ollama_running():
-    start_ollama_model("tinyllama")
+    print("Ollama Not Running")
+    start_ollama_model("mistral")
 
 
 dpg.create_viewport(title="EHS KPI Dashboard", width=1440, height=1000)
 dpg.setup_dearpygui()
 dpg.show_viewport()
+
 
 dpg.set_frame_callback(1, update_kpis_with_filters)
 
