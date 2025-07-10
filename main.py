@@ -178,9 +178,10 @@ def update_applied_filters():
         if applied:
             combined = " | ".join(applied)
         else:
-            combined = "None"
+            combined = "No filters applied"
 
-        dpg.add_text(combined, color=(0, 80, 40), parent="applied_filter_group")
+        dpg.add_text(combined, color=(0,0,0), parent="applied_filter_group" , tag="applied_filters")
+        dpg.bind_item_font("applied_filters", font=("RobotoMono-Lights" , 10))
     
 
 
@@ -195,7 +196,8 @@ def create_filter_controls():
             update_kpis_with_filters()
 
         with dpg.group(width=300):
-            dpg.add_text(label, color=(0, 102, 68))
+            dpg.add_text(label, color=(0,0,0),tag=f"filter_label{key}")
+            dpg.bind_item_font(f"filter_label{key}", font=small_font)
         combo_id = dpg.add_combo(
             items=filter_options[key],
             default_value="None",
@@ -399,8 +401,8 @@ def plot_all_graphs():
 
     # Plot 1: Incidents vs Time
     if months:
-        axs[0, 0].plot(months, counts, marker='o', color='#009966')
-        axs[0, 0].set_title("Incidents Over Time", fontsize=12, color='#004d33')
+        axs[0, 0].plot(months, counts, marker='o', color='#023E8A')
+        axs[0, 0].set_title("Incidents Over Time", fontsize=12, color='#023E8A')
         axs[0, 0].tick_params(axis='x', rotation=30)
     else:
         axs[0, 0].set_title("No Data", fontsize=12)
@@ -413,8 +415,8 @@ def plot_all_graphs():
         import pandas as pd
         df = pd.DataFrame(dept_data, columns=["Department", "Severity", "Count"])
         pivot = df.pivot(index="Department", columns="Severity", values="Count").fillna(0)
-        pivot.plot(kind="bar", stacked=True, ax=axs[0, 1], colormap="YlGn")
-        axs[0, 1].set_title("Departments vs Severity", fontsize=12, color='#004d33')
+        pivot.plot(kind="bar", stacked=True, ax=axs[0, 1], colormap="Blues")
+        axs[0, 1].set_title("Departments vs Severity", fontsize=12, color='#023E8A')
         axs[0, 1].set_ylabel("Incidents Severity Count")
         axs[0, 1].legend(title="Severity Level", fontsize=8)
         axs[0, 1].tick_params(axis='x', rotation=30)
@@ -426,8 +428,8 @@ def plot_all_graphs():
     if type_data:
         df = pd.DataFrame(type_data, columns=["Incident Type", "Severity", "Count"])
         pivot = df.pivot(index="Incident Type", columns="Severity", values="Count").fillna(0)
-        pivot.plot(kind="bar", stacked=True, ax=axs[1, 0], colormap="YlGn")
-        axs[1, 0].set_title("Incident Type vs Severity", fontsize=12, color='#004d33')
+        pivot.plot(kind="bar", stacked=True, ax=axs[1, 0], colormap="Blues")
+        axs[1, 0].set_title("Incident Type vs Severity", fontsize=12, color='#023E8A')
         axs[1, 0].set_ylabel("Incidents Severity Count")
         axs[1, 0].legend(title="Severity Levels", fontsize=8)
         axs[1, 0].tick_params(axis='x' , rotation=360)
@@ -443,7 +445,7 @@ def plot_all_graphs():
         min_sev = min(severities)
         norm_severities = [(s - min_sev) / (max_sev - min_sev) if max_sev != min_sev else 0.5 for s in severities]
 
-        cmap = cm_mpl.get_cmap('YlGn')
+        cmap = cm_mpl.get_cmap('Blues')
         colors = [cmap(norm) for norm in norm_severities]
 
         total_days = sum(days_lost)
@@ -459,8 +461,7 @@ def plot_all_graphs():
             textprops={'fontsize': 10},
             radius=1.2
         )
-
-        axs[1, 1].set_title("Severity vs Days Lost", fontsize=12, color='#004d33')
+        axs[1, 1].set_title("Severity vs Days Lost", fontsize=12, color='#023E8A')
 
         box = axs[1, 1].get_position()
         axs[1, 1].set_position([box.x0 - 0.05, box.y0, box.width, box.height])
@@ -531,12 +532,12 @@ def generate_pdf_report(kpi_data, filters, generator, graph_path="plots.png", sa
     width, height = A4
 
     # Header background box
-    c.setFillColor(colors.HexColor("#006633"))  # Dark green
+    c.setFillColor(colors.HexColor("#ABC4FF"))  # Dark green
     c.rect(0, height - 60, width, 60, stroke=0, fill=1)
 
     # Title
     c.setFont("Helvetica-Bold", 20)
-    c.setFillColor(colors.white)
+    c.setFillColor(colors.HexColor("#000000"))
     c.drawString(50, height - 40, "EHS Dashboard Report")
 
     # Reset fill color for body
@@ -548,7 +549,7 @@ def generate_pdf_report(kpi_data, filters, generator, graph_path="plots.png", sa
     y = height - 130
 
     # Section: Filters
-    c.setFillColor(colors.HexColor("#006633"))
+    c.setFillColor(colors.HexColor("#000000"))
     c.setFont("Helvetica-Bold", 14)
     c.drawString(50, y, "Applied Filters")
     y -= 15
@@ -571,7 +572,7 @@ def generate_pdf_report(kpi_data, filters, generator, graph_path="plots.png", sa
     y -= 10
 
     # Section: KPIs
-    c.setFillColor(colors.HexColor("#006633"))
+    c.setFillColor(colors.HexColor("#000000"))
     c.setFont("Helvetica-Bold", 14)
     c.drawString(50, y, "KPI Summary")
     y -= 15
@@ -597,7 +598,7 @@ def generate_pdf_report(kpi_data, filters, generator, graph_path="plots.png", sa
     y -= 15
 
     # Section: Graphs
-    c.setFillColor(colors.HexColor("#006633"))
+    c.setFillColor(colors.HexColor("#000000"))
     c.setFont("Helvetica-Bold", 14)
     c.drawString(50, y, "Visualizations")
     y -= 15
@@ -632,7 +633,7 @@ def generate_pdf_report(kpi_data, filters, generator, graph_path="plots.png", sa
         c.showPage() 
 
         c.setFont("Helvetica-Bold", 18)
-        c.setFillColor(colors.HexColor("#006633"))
+        c.setFillColor(colors.HexColor("#000000"))
         c.drawString(50, height - 60, "AI Analysis")
         c.setFillColor(colors.black)
         c.setFont("Helvetica", 12)
@@ -645,7 +646,7 @@ def generate_pdf_report(kpi_data, filters, generator, graph_path="plots.png", sa
             if y < 50: 
                 c.showPage()
                 c.setFont("Helvetica-Bold", 18)
-                c.setFillColor(colors.HexColor("#006633"))
+                c.setFillColor(colors.HexColor("#ABC4FF"))
                 c.drawString(50, height - 60, "AI Analysis (cont'd)")
                 c.setFillColor(colors.black)
                 c.setFont("Helvetica", 12)
@@ -805,150 +806,162 @@ def is_ollama_running():
 dpg.create_context()
 
 # Theme setup (Green and White)
-with dpg.theme() as kpi_theme:
+with dpg.theme() as main_theme:
     with dpg.theme_component(dpg.mvAll):
-        dpg.add_theme_color(dpg.mvThemeCol_WindowBg, (240,240,240), category=dpg.mvThemeCat_Core)
-        dpg.add_theme_color(dpg.mvThemeCol_Button, 	(0, 104, 55), category=dpg.mvThemeCat_Core)          
-        dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered,(0, 120, 55), category=dpg.mvThemeCat_Core)
-        dpg.add_theme_color(dpg.mvThemeCol_ButtonActive,(0, 104, 55) , category=dpg.mvThemeCat_Core)
-        dpg.add_theme_color(dpg.mvThemeCol_Text, (255, 255, 255), category=dpg.mvThemeCat_Core)
+        dpg.add_theme_color(dpg.mvThemeCol_WindowBg, (237, 242, 251), category=dpg.mvThemeCat_Core)
+        dpg.add_theme_color(dpg.mvThemeCol_Text, (0,0,0), category=dpg.mvThemeCat_Core)
         dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 8)
         dpg.add_theme_style(dpg.mvStyleVar_WindowRounding, 10)
         dpg.add_theme_style(dpg.mvStyleVar_ItemSpacing, 10, 10)
 
+# KPI card buttons
+with dpg.theme() as kpi_button_theme:
+    with dpg.theme_component(dpg.mvButton):
+        dpg.add_theme_color(dpg.mvThemeCol_Button, (182, 204, 254), category=dpg.mvThemeCat_Core)
+        dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (171, 196, 255), category=dpg.mvThemeCat_Core)
+        dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (182, 204, 254), category=dpg.mvThemeCat_Core)
+        dpg.add_theme_color(dpg.mvThemeCol_Text, (0,0,0), category=dpg.mvThemeCat_Core)
+        dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 6)
+
+# Action buttons (Refresh, Get Insights, Clear Filters, etc.)
+with dpg.theme() as action_button_theme:
+    with dpg.theme_component(dpg.mvButton):
+        dpg.add_theme_color(dpg.mvThemeCol_Button, (171, 196, 255), category=dpg.mvThemeCat_Core)
+        dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (171, 196, 255), category=dpg.mvThemeCat_Core)
+        dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (182, 204, 254), category=dpg.mvThemeCat_Core)
+        dpg.add_theme_color(dpg.mvThemeCol_Text, (0,0,0), category=dpg.mvThemeCat_Core)
+        dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 6)
+
+# Combo filter box
 with dpg.theme() as combo_theme:
     with dpg.theme_component(dpg.mvCombo):
-        dpg.add_theme_color(dpg.mvThemeCol_FrameBg, (225, 255, 225), category=dpg.mvThemeCat_Core)        # Base background
-        dpg.add_theme_color(dpg.mvThemeCol_FrameBgHovered, (210, 255, 210), category=dpg.mvThemeCat_Core) # Hover
-        dpg.add_theme_color(dpg.mvThemeCol_FrameBgActive, (200, 240, 200), category=dpg.mvThemeCat_Core)  # Active click
-        dpg.add_theme_color(dpg.mvThemeCol_Text, (0, 80, 40), category=dpg.mvThemeCat_Core)
-        dpg.add_theme_color(dpg.mvThemeCol_Border, (0, 120, 80), category=dpg.mvThemeCat_Core)
+        dpg.add_theme_style(dpg.mvStyleVar_FramePadding, 12, 6)
+        dpg.add_theme_color(dpg.mvThemeCol_Border, (237, 242, 251), category=dpg.mvThemeCat_Core)
+        dpg.add_theme_color(dpg.mvThemeCol_FrameBg, (182, 204, 254), category=dpg.mvThemeCat_Core)
+        dpg.add_theme_color(dpg.mvThemeCol_FrameBgHovered, (171, 196, 255), category=dpg.mvThemeCat_Core)
+        dpg.add_theme_color(dpg.mvThemeCol_FrameBgActive, (182, 204, 254), category=dpg.mvThemeCat_Core)
+        dpg.add_theme_color(dpg.mvThemeCol_Text, (0,0,0), category=dpg.mvThemeCat_Core)
+        dpg.add_theme_color(dpg.mvThemeCol_Border, (237, 242, 251), category=dpg.mvThemeCat_Core)
+        dpg.add_theme_color(dpg.mvThemeCol_PopupBg, (182, 204, 254), category=dpg.mvThemeCat_Core)
+        dpg.add_theme_color(dpg.mvThemeCol_Header, (182, 204, 254), category=dpg.mvThemeCat_Core)
+        dpg.add_theme_color(dpg.mvThemeCol_HeaderHovered, (171, 196, 255), category=dpg.mvThemeCat_Core)
+        dpg.add_theme_color(dpg.mvThemeCol_HeaderActive, (171, 196, 255), category=dpg.mvThemeCat_Core)
 
-        dpg.add_theme_color(dpg.mvThemeCol_PopupBg, (240, 255, 240), category=dpg.mvThemeCat_Core)        # List background
-        dpg.add_theme_color(dpg.mvThemeCol_Header, (200, 240, 200), category=dpg.mvThemeCat_Core)         # Hovered option
-        dpg.add_theme_color(dpg.mvThemeCol_HeaderHovered, (180, 230, 180), category=dpg.mvThemeCat_Core)  # Hover effect
-        dpg.add_theme_color(dpg.mvThemeCol_HeaderActive, (160, 220, 160), category=dpg.mvThemeCat_Core)   # Clicked effectwith
-
+# Input fields
 with dpg.theme() as input_theme:
     with dpg.theme_component(dpg.mvInputText):
-        dpg.add_theme_color(dpg.mvThemeCol_FrameBg, (225, 255, 225), category=dpg.mvThemeCat_Core)  # light green background
-        dpg.add_theme_color(dpg.mvThemeCol_FrameBgHovered, (230, 250, 230), category=dpg.mvThemeCat_Core)
-        dpg.add_theme_color(dpg.mvThemeCol_FrameBgActive, (220, 245, 220), category=dpg.mvThemeCat_Core)
-        dpg.add_theme_color(dpg.mvThemeCol_Text, (0, 80, 40), category=dpg.mvThemeCat_Core)
-        dpg.add_theme_color(dpg.mvThemeCol_Border, (180, 220, 180), category=dpg.mvThemeCat_Core)
+        dpg.add_theme_color(dpg.mvThemeCol_FrameBg, (182, 204, 254), category=dpg.mvThemeCat_Core)
+        dpg.add_theme_color(dpg.mvThemeCol_FrameBgHovered, (3, 4, 94), category=dpg.mvThemeCat_Core)
+        dpg.add_theme_color(dpg.mvThemeCol_FrameBgActive, (182, 204, 254), category=dpg.mvThemeCat_Core)
+        dpg.add_theme_color(dpg.mvThemeCol_Text, (0,0,0), category=dpg.mvThemeCat_Core)
+        dpg.add_theme_color(dpg.mvThemeCol_Border, (182, 204, 254), category=dpg.mvThemeCat_Core)
         dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 6)
         dpg.add_theme_style(dpg.mvStyleVar_FramePadding, 10, 6)
 
+# Popup for insights
 with dpg.theme() as popup_theme:
     with dpg.theme_component(dpg.mvAll):
-        dpg.add_theme_color(dpg.mvThemeCol_WindowBg, (240, 255, 240), category=dpg.mvThemeCat_Core)  # light greenish-white
-        dpg.add_theme_color(dpg.mvThemeCol_Text, (0, 80, 40), category=dpg.mvThemeCat_Core)  # deep green text
+        dpg.add_theme_color(dpg.mvThemeCol_WindowBg, (237, 242, 251), category=dpg.mvThemeCat_Core)
+        dpg.add_theme_color(dpg.mvThemeCol_Text, (0,0,0), category=dpg.mvThemeCat_Core)
         dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 8)
         dpg.add_theme_style(dpg.mvStyleVar_WindowRounding, 10)
         dpg.add_theme_style(dpg.mvStyleVar_ItemSpacing, 10, 10)
 
+# ------------------- FONTS -------------------
+
 with dpg.font_registry() as font_reg:
-    large_font = dpg.add_font("RobotoMono-Light.ttf", 32)
-    medium_font = dpg.add_font("RobotoMono-Light.ttf", 24)
+    large_font = dpg.add_font("RobotoMono-Bold.ttf", 32)
+    medium_font = dpg.add_font("RobotoMono-Medium.ttf", 24)
     small_font = dpg.add_font("RobotoMono-Light.ttf", 20)
 
-    
+# ------------------- UI -------------------
 
-# Create main window
-with dpg.window(tag="main_window", label="EHS-Incidents", width=1600, height=900, pos=(0, 0),no_scrollbar=False):
-    dpg.bind_item_theme("main_window", kpi_theme)
+with dpg.window(tag="main_window", label="EHS-Incidents", width=1600, height=900, pos=(0, 0)):
+    dpg.bind_item_theme("main_window", main_theme)
 
     dpg.add_spacer(height=10)
-    dpg.add_text("EHS - Incident Dashboard", tag="main_heading",color=(0, 80, 40),indent=600)
+    dpg.add_text("EHS - Incident Dashboard", tag="main_heading", color=(0,0,0), indent=600)
     dpg.bind_item_font("main_heading", large_font)
-    
-    dpg.add_separator()
+
+    dpg.add_separator(label = "Filters",indent=0)
     dpg.add_spacer(height=15)
 
-    dpg.add_text("Apply Filters", color=(0, 80, 40),tag="filter_heading")
-    dpg.bind_item_font("filter_heading", medium_font)
+    
+    # dpg.add_text("Apply Filters", tag="filter_heading", color=(2, 62, 138))
+    # dpg.bind_item_font("filter_heading", medium_font)
     with dpg.group(horizontal=True):
         create_filter_controls()
-    
-    dpg.add_text("Applied Filters:", color=(0, 80, 40), tag="applied_filter_heading")
-    dpg.bind_item_font("applied_filter_heading", small_font)
 
-    with dpg.group(tag="applied_filter_group"):
-        pass 
-        
+
+    # dpg.add_text("Applied Filters:", color=(2, 62, 138) , tag= "applied_filter_heading")
+    # dpg.bind_item_font("applied_filter_heading", medium_font)
     
-    dpg.add_spacer(height=10)
-    dpg.add_button(label="Clear Filters", width=150, callback=clear_filters)
+    dpg.add_button(label="Clear Filters", tag="clear_filters", width=150, callback=clear_filters)
+    with dpg.group(tag="applied_filter_group"): pass
+    
+
 
     dpg.add_spacer(height=15)
-    dpg.add_text("KPI Overview", color=(0, 80, 40),tag="kpi_heading")
-    dpg.bind_item_font("kpi_heading", medium_font)
-    dpg.add_spacer(height=10)
+    dpg.add_separator(label = "KPIs")
+    # dpg.add_text("KPI Overview", tag="kpi_heading", color=(2, 62, 138))
+    # dpg.bind_item_font("kpi_heading", medium_font)
 
-    dpg.add_button(label="Refresh", width=180, callback=refresh)
+    dpg.add_spacer(height=15)
+    
 
-    # KPI Cards
     with dpg.group(horizontal=True):
-        dpg.add_button(label="\n...\nTotal Incidents", width=210, height=100, tag="kpi_total_incidents")
-        dpg.add_button(label="\n...\nTotal Injuries", width=210, height=100, tag="kpi_total_injuries")
-        dpg.add_button(label="\n...\nDays Lost", width=210, height=100, tag="kpi_days_lost")
-        dpg.add_button(label="\n...\nAvg. Severity", width=210, height=100, tag="kpi_avg_severity")
-        dpg.add_button(label="\n...\nHigh Severity Cases", width=210, height=100, tag="kpi_high_severity")
-        dpg.add_button(label="\n...\nInjury Rate", width=210, height=100, tag="kpi_injury_rate")
-        dpg.add_button(label="\n...\nTop Incident", width=210, height=100, tag="kpi_common_type")
+        kpi_tags = [
+            "kpi_total_incidents", "kpi_total_injuries", "kpi_days_lost",
+            "kpi_avg_severity", "kpi_high_severity", "kpi_injury_rate", "kpi_common_type"
+        ]
+        for tag in kpi_tags:
+            dpg.add_button(label="\n...\n" + tag.split("_")[1].replace("_", " ").title(), width=210, height=100, tag=tag)
+            dpg.bind_item_font(tag, small_font)
+            dpg.bind_item_theme(tag, kpi_button_theme)
+    dpg.add_button(label="Refresh", tag="refresh", width=150, callback=refresh)
 
-        dpg.bind_item_font("kpi_total_incidents", small_font)
-        dpg.bind_item_font("kpi_total_injuries", small_font)
-        dpg.bind_item_font("kpi_days_lost", small_font)
-        dpg.bind_item_font("kpi_avg_severity", small_font)
-        dpg.bind_item_font("kpi_high_severity", small_font)
-        dpg.bind_item_font("kpi_injury_rate", small_font)
-        dpg.bind_item_font("kpi_common_type", small_font)
+    dpg.add_spacer(height=15)
+    dpg.add_separator(label = "Report")
+    dpg.add_spacer(height=15)
+    # dpg.add_text("Report Generator", tag="report_generator_label", color=(2, 62, 138))
+    # dpg.bind_item_font("report_generator_label", medium_font)
 
-    dpg.add_spacer(height=10)
-    dpg.add_text("Report Generator", color=(0, 80, 40),tag = "report_generator_label")
-    dpg.bind_item_font("report_generator_label", medium_font)
     dpg.add_input_text(tag="report_generator_input", width=300, hint="Enter your name")
-    dpg.bind_item_theme("report_generator_input", input_theme)
     dpg.bind_item_font("report_generator_input", small_font)
+    dpg.bind_item_theme("report_generator_input", input_theme)
 
     dpg.add_button(label="Generate Report", tag="report_button", width=180, height=40, callback=on_generate_report)
 
-    dpg.add_text("" , tag="ai_insights_storage" , show = False)
+    dpg.add_text("", tag="ai_insights_storage", show=False)
 
-if dpg.does_item_exist("insights_popup"):
-    dpg.delete_item("insights_popup")
-with dpg.window(tag="insights_popup", label="AI Insights", width=800, height=450, pos=(300, 100), show=False, no_close=False):
+with dpg.window(tag="insights_popup", label="AI Insights", width=800, height=450, pos=(300, 100), show=False):
     dpg.bind_item_theme("insights_popup", popup_theme)
     dpg.add_text("", tag="popup_insights_text", wrap=750)
     dpg.bind_item_font("popup_insights_text", small_font)
 
-with dpg.group(horizontal=False , tag="insights_group" , parent="main_window"):
-    dpg.add_spacer(height=20)
-    dpg.add_text("Insights", color=(0, 80, 40),tag = "insights_heading")
-    dpg.bind_item_font("insights_heading", medium_font)
-    
-    dpg.add_spacer(height=10)
+with dpg.group(tag="graph_container", parent="main_window"):
+    dpg.add_spacer(height=15)
+    dpg.add_separator(label = "Graphs and Summary" , parent="graph_container")
+    dpg.add_spacer(height=15)
     dpg.add_button(label="Get Insights", tag="insights_button", width=180, height=40, callback=generate_insights)
+    # dpg.add_text("GRAPHS", tag="graph_heading", color=(2, 62, 138))
+    # dpg.bind_item_font("graph_heading", medium_font)
 
-with dpg.group(horizontal=False, tag="graph_container", parent="main_window"):
-    dpg.add_spacer(height=20)
-    dpg.add_text("GRAPHS", color=(0, 80, 40),tag = "graph_heading")
-    dpg.bind_item_font("graph_heading", medium_font)
+# Apply theme to action buttons
+for action_btn in ["clear_filters", "refresh", "report_button", "insights_button"]:
+    if dpg.does_item_exist(action_btn):
+        dpg.bind_item_theme(action_btn, action_button_theme)
 
-
+# ------------------- FINAL SETUP -------------------
 
 if not is_ollama_running():
     print("Ollama Not Running")
     start_ollama_model("mistral")
 
-
 dpg.create_viewport(title="EHS KPI Dashboard", width=1440, height=1000)
 dpg.setup_dearpygui()
 dpg.show_viewport()
 
-
 dpg.set_frame_callback(1, update_kpis_with_filters)
-
 dpg.start_dearpygui()
 dpg.destroy_context()
