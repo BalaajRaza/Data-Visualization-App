@@ -532,7 +532,7 @@ def generate_pdf_report(kpi_data, filters, generator, graph_path="plots.png", sa
     width, height = A4
 
     # Header background box
-    c.setFillColor(colors.HexColor("#ABC4FF"))  # Dark green
+    c.setFillColor(colors.HexColor("#ABC4FF"))
     c.rect(0, height - 60, width, 60, stroke=0, fill=1)
 
     # Title
@@ -630,7 +630,9 @@ def generate_pdf_report(kpi_data, filters, generator, graph_path="plots.png", sa
 
     ai_insights = dpg.get_value("ai_insights_storage")
     if ai_insights:
-        c.showPage() 
+        c.showPage()
+        c.setFillColor(colors.HexColor("#ABC4FF"))
+        c.rect(0, height - 60, width, 60, stroke=0, fill=1) 
 
         c.setFont("Helvetica-Bold", 18)
         c.setFillColor(colors.HexColor("#000000"))
