@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='admin_dashboard.css') }}">
+</head>
+<body>
+
+    <!-- Top Navigation Bar -->
+    <div class="navbar">
+        <div class="nav-left">EHS - Admin Portal</div>
+        <div class="nav-links">
+            <a href="#">Dashboard</a>
+            <a href="#">Users</a>
+            <a href="#">Admins</a>
+            <a href="#">Data</a>
+            <span class="welcome">Welcome, {{ user }}</span>
+            <a href="{{ url_for('logout') }}" class="logout-btn">Logout</a>
+        </div>
+    </div>
+
+    <!-- Main Section -->
+    <div class="main-content">
+        <!-- Left Filters Panel -->
+        <div class="filters">
+            <h3>Filters</h3>
+            <form method="POST">
+                {% for key, options in filters.items() %}
+                    <div class="filter-group">
+                        <label>{{ key.replace("_", " ").title() }}</label>
+                        <div class="checkbox-group">
+                            {% for option in options %}
+                            <label>
+                                <input type="checkbox" name="{{ key }}" value="{{ option }}">
+                                {% if key == 'injured' %}
+                                    {{ 'Yes' if option == '1' else 'No' }}
+                                {% else %}
+                                    {{ option }}
+                                {% endif %}
+                            </label>
+                        {% endfor %}
+                        </div>
+                    </div>
+                {% endfor %}
+                <button type="submit">Apply Filters</button>
+            </form>
+        </div>
+
+        <!-- Right Dashboard Content -->
+        <div class="dashboard">
+            <h2>Dashboard KPIs</h2>
+            <!-- Later this will be populated with graphs and KPIs -->
+            <p>Select filters and implement dashboard KPIs here.</p>
+        </div>
+    </div>
+
+</body>
+</html>

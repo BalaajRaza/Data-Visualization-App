@@ -1,45 +1,14 @@
 from sql_connector import get_connection
 
 filter_state = {
-    "year": None,
-    "month": None,
-    "department": None,
-    "incident_type": None,
-    "severity": None,
-    "injured": None,
-    "days_lost": None
+    "year": [],
+    "month": [],
+    "department": [],
+    "incident_type": [],
+    "severity": [],
+    "injured": [],
+    "days_lost": []
 }
-
-def get_filter_options():
-    conn = get_connection()
-    cursor = conn.cursor()
-
-    def fetch_values(query):
-        cursor.execute(query)
-        return sorted([str(row[0]) for row in cursor.fetchall() if row[0] is not None])
-
-    years = fetch_values("SELECT DISTINCT YEAR(inc_date) FROM incidents")
-    months = fetch_values("SELECT DISTINCT MONTH(inc_date) FROM incidents")
-    departments = fetch_values("SELECT DISTINCT department FROM incidents")
-    incident_types = fetch_values("SELECT DISTINCT incident_type FROM incidents")
-    severities = fetch_values("SELECT DISTINCT severity FROM incidents")
-    injured_vals = fetch_values("SELECT DISTINCT injured FROM incidents")
-    days_lost_vals = fetch_values("SELECT DISTINCT days_lost FROM incidents")
-
-    months = sorted(months, key=lambda x: int(x))
-    cursor.close()
-    conn.close()
-
-    return {
-        "year": ["None"] + years,
-        "month": ["None"] + months,
-        "department": ["None"] + departments,
-        "incident_type": ["None"] + incident_types,
-        "severity": ["None"] + severities,
-        "injured": ["None"] + injured_vals,
-        "days_lost": ["None"] + days_lost_vals
-    }
-
 
 def fetch_kpi_data_with_filters():
     conn = get_connection()
@@ -48,34 +17,29 @@ def fetch_kpi_data_with_filters():
     base_conditions = []
     params = []
 
-    # Apply filters
-    if filter_state["year"]:
-        base_conditions.append("YEAR(inc_date) = %s")
-        params.append(int(filter_state["year"]))
-    if filter_state["month"]:
-        base_conditions.append("MONTH(inc_date) = %s")
-        params.append(int(filter_state["month"]))
-    if filter_state["department"]:
-        base_conditions.append("department = %s")
-        params.append(filter_state["department"])
-    if filter_state["incident_type"]:
-        base_conditions.append("incident_type = %s")
-        params.append(filter_state["incident_type"])
-    if filter_state["severity"]:
-        base_conditions.append("severity = %s")
-        params.append(int(filter_state["severity"]))
-    if filter_state["injured"]:
-        base_conditions.append("injured = %s")
-        params.append(int(filter_state["injured"]))
-    if filter_state["days_lost"]:
-        base_conditions.append("days_lost = %s")
-        params.append(int(filter_state["days_lost"]))
+    # Handle multiple selections for each filter
+    def handle_filter(field, column_name, cast_type=None):
+        values = filter_state.get(field)
+        if values:
+            placeholders = ', '.join(['%s'] * len(values))
+            base_conditions.append(f"{column_name} IN ({placeholders})")
+            if cast_type:
+                params.extend([cast_type(v) for v in values])
+            else:
+                params.extend(values)
+
+    handle_filter("year", "YEAR(inc_date)", int)
+    handle_filter("month", "MONTH(inc_date)", int)
+    handle_filter("department", "department")
+    handle_filter("incident_type", "incident_type")
+    handle_filter("severity", "severity", int)
+    handle_filter("injured", "injured", int)
+    handle_filter("days_lost", "days_lost", int)
 
     where_clause = " AND ".join(base_conditions)
     if where_clause:
         where_clause = "WHERE " + where_clause
 
-    # Final query
     final_query = f"""
         SELECT
             COUNT(*) AS total_incidents,
@@ -99,13 +63,13 @@ def fetch_kpi_data_with_filters():
         {where_clause};
     """
 
-    cursor.execute(final_query, params * 2) 
+    # Double the params because the subquery also uses the same filters
+    cursor.execute(final_query, params * 2)
     result = cursor.fetchone()
 
     cursor.close()
     conn.close()
 
-    # Return a dict for clarity
     return {
         "total": result[0] or 0,
         "injuries": result[1] or 0,

@@ -1,0 +1,119 @@
+/* Import Google Fonts if needed (optional) */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap');
+
+body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Poppins', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f5f5f5;
+}
+
+/* Navigation Bar */
+.navbar {
+    height: 70px;  /* Wider height */
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 40px;
+    background: linear-gradient(90deg, #000000, #333333); /* BNW gradient */
+    color: #fff;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    font-weight: 500;
+}
+
+.nav-left {
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: 1px;
+}
+
+.nav-links {
+    display: flex;
+    gap: 30px;
+    align-items: center;
+}
+
+.nav-links a {
+    color: white;
+    text-decoration: none;
+    font-size: 16px;
+    transition: color 0.3s ease;
+}
+
+.nav-links a:hover {
+    color: #bbbbbb;
+}
+
+.nav-links .welcome {
+    font-size: 14px;
+    font-style: italic;
+    margin-left: 20px;
+    color: #ccc;
+}
+
+.nav-links .logout-btn {
+    background-color: #fff;
+    color: #000;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-weight: bold;
+    text-decoration: none;
+    transition: background 0.3s ease, color 0.3s ease;
+}
+
+.nav-links .logout-btn:hover {
+    background-color: #e5e5e5;
+    color: #000;
+}
+
+
+.main-content {
+    display: flex;
+    height: calc(100vh - 60px);
+    padding-left: 10px;
+}
+
+.filters {
+    width: 20%;
+    background-color: #eaeaea;
+    padding: 20px;
+    overflow-y: auto;
+    border-right: 1px solid #ccc;
+}
+
+.filter-group {
+    margin-bottom: 20px;
+}
+
+.filter-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+.checkbox-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.checkbox-group label {
+    display: flex;
+    align-items: center;
+    background-color: #fff;
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.checkbox-group input[type="checkbox"] {
+    margin-right: 6px;
+}
+
+.dashboard {
+    width: 80%;
+    padding: 30px;
+}

@@ -1,6 +1,7 @@
 from flask import Flask, request, render_template, redirect, url_for, session
 from sql_connector import get_connection
 import os, secrets, hashlib, binascii, re
+from utility_script import get_filter_options
 
 app = Flask(__name__)
 
@@ -117,7 +118,7 @@ def login():
                 session['user_id'] = user['user_id']
                 session['user_name'] = user['user_name']
                 session['role'] = user['user_role']
-                
+
                 if user['user_role'] == 'user':
                     return redirect(url_for("dashboard"))
                 elif user["user_role"] == 'admin':
@@ -138,13 +139,27 @@ def login():
 
 
 
-# ----------- Dashboard -----------
+# ----------- User Dashboard -----------
 
 @app.route("/dashboard")
 def dashboard():
     if 'user_name' not in session:
         return redirect(url_for("login"))
     return f"Welcome {session['user_name']}! You are logged in as {session['role']}."
+
+
+# ----------- Admin Dashboard -----------
+
+@app.route("/admin_dashboard")
+def admin_dashboard():
+    if 'user_name' not in session or session.get("role") != "admin":
+        return redirect(url_for("login"))
+
+    filter_options = get_filter_options()
+    print(filter_options)
+    return render_template("admin_dashboard.html", filters=filter_options, user=session['user_name'])
+
+
 
 
 # ----------- Logout -----------
