@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Signup</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='login.css') }}">
+    <style>
+        .error-msg {
+            color: red;
+            font-size: 14px;
+            margin: 4px 0 10px 0;
+            text-align: left;
+        }
+
+        .main-heading {
+            position: absolute;
+            top: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            font-size: 36px;
+            font-weight: bold;
+            letter-spacing: 1px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+    </style>
+</head>
+<body>
+    <div class="background"></div>
+
+    <!-- Heading above signup card -->
+    <div class="main-heading">EHS - Incidents</div>
+
+    <div class="login-container">
+        <h2>Signup</h2>
+
+        <form method="POST">
+            <input type="text" name="username" placeholder="Username" required><br>
+            {% if errors.username %}<div class="error-msg">{{ errors.username }}</div>{% endif %}
+
+            <input type="email" name="email" placeholder="Email" required><br>
+            {% if errors.email %}<div class="error-msg">{{ errors.email }}</div>{% endif %}
+
+            <input type="password" name="password" placeholder="Password" required><br>
+            {% if errors.password %}<div class="error-msg">{{ errors.password }}</div>{% endif %}
+
+            <button type="submit">Sign Up</button>
+        </form>
+
+        <p>Already have an account? <a href="{{ url_for('login') }}">Login here</a></p>
+    </div>
+</body>
+</html>
