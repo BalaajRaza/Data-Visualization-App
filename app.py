@@ -211,8 +211,8 @@ def admin_dashboard():
     )
 
 @app.route("/admin_data" , methods=["GET", "POST"])
-def admins_data():
-    pass
+def admin_data():
+    return render_template("admin_data.html") 
 
 
 

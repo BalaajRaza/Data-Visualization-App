@@ -16,7 +16,7 @@
             <a href="#">Dashboard</a>
             <a href="#">Users</a>
             <a href="#">Admins</a>
-            <a href="{{url_for('admin_data')}}">Data</a>
+            <a href="{{ url_for('admin_data') }}">Data</a>
             <span class="welcome">Welcome, {{ user }}</span>
             <a href="{{ url_for('logout') }}" class="logout-btn">Logout</a>
         </div>

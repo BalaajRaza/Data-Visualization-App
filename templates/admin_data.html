@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Data</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='admin_data.css') }}">
+</head>
+<body>
+    <!-- Top Navigation Bar -->
+    <div class="navbar">
+        <div class="nav-left">EHS - Admin Portal</div>
+        <div class="nav-links">
+            <a href="#">Dashboard</a>
+            <a href="#">Users</a>
+            <a href="#">Admins</a>
+            <a href="{{url_for('admin_data')}}">Data</a>
+            <span class="welcome">Welcome, {{ user }}</span>
+            <a href="{{ url_for('logout') }}" class="logout-btn">Logout</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>Insert New Incident Record</h2>
+    
+        <!-- Single Record Insert Form -->
+        <form method="POST" action="#" class="insert-form">
+            <div class="form-group">
+                <label for="inc_date">Incident Date</label>
+                <input type="datetime-local" id="inc_date" name="inc_date" required>
+            </div>
+    
+            <div class="form-group">
+                <label for="department">Department</label>
+                <input type="text" id="department" name="department" maxlength="20" required>
+            </div>
+    
+            <div class="form-group">
+                <label for="incident_type">Incident Type</label>
+                <input type="text" id="incident_type" name="incident_type" maxlength="20" required>
+            </div>
+    
+            <div class="form-group">
+                <label for="severity">Severity</label>
+                <select id="severity" name="severity" required>
+                    <option value="">-- Select Severity --</option>
+                    {% for i in range(1, 6) %}
+                        <option value="{{ i }}">{{ i }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+    
+            <div class="form-group">
+                <label for="injured">Injured?</label>
+                <select id="injured" name="injured" required>
+                    <option value="">-- Select --</option>
+                    <option value="1">Yes</option>
+                    <option value="0">No</option>
+                </select>
+            </div>
+    
+            <div class="form-group">
+                <label for="days_lost">Days Lost</label>
+                <input type="number" id="days_lost" name="days_lost" min="0" required>
+            </div>
+    
+            <button type="submit" class="submit-btn">Insert Record</button>
+        </form>
+    
+        <!-- Batch Insert -->
+        <div class="batch-insert-section">
+            <h3>Or Upload Excel for Batch Insert</h3>
+            <form method="POST" action="#" enctype="multipart/form-data">
+                <input type="file" name="excel_file" accept=".xlsx" required>
+                <button type="submit" class="batch-btn">Upload & Insert</button>
+            </form>
+        </div>
+    </div>
+    
+
+    
+</body>
+</html>
