@@ -3,6 +3,9 @@
 <head>
     <title>Admin Dashboard</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='admin_dashboard.css') }}">
+    <link href="https://cdn.bokeh.org/bokeh/release/bokeh-3.7.3.min.css" rel="stylesheet">
+<script src="https://cdn.bokeh.org/bokeh/release/bokeh-3.7.3.min.js"></script>
+    
 </head>
 <body>
 
@@ -13,7 +16,7 @@
             <a href="#">Dashboard</a>
             <a href="#">Users</a>
             <a href="#">Admins</a>
-            <a href="#">Data</a>
+            <a href="{{url_for('admin_data')}}">Data</a>
             <span class="welcome">Welcome, {{ user }}</span>
             <a href="{{ url_for('logout') }}" class="logout-btn">Logout</a>
         </div>
@@ -30,15 +33,16 @@
                         <label>{{ key.replace("_", " ").title() }}</label>
                         <div class="checkbox-group">
                             {% for option in options %}
-                            <label>
-                                <input type="checkbox" name="{{ key }}" value="{{ option }}">
-                                {% if key == 'injured' %}
-                                    {{ 'Yes' if option == '1' else 'No' }}
-                                {% else %}
-                                    {{ option }}
-                                {% endif %}
-                            </label>
-                        {% endfor %}
+                                <label>
+                                    <input type="checkbox" name="{{ key }}" value="{{ option }}"
+                                    {% if option in (filter_state.get(key) or []) %}checked{% endif %}>
+                                    {% if key == 'injured' %}
+                                        {{ 'Yes' if option == '1' else 'No' }}
+                                    {% else %}
+                                        {{ option }}
+                                    {% endif %}
+                                </label>
+                            {% endfor %}
                         </div>
                     </div>
                 {% endfor %}
@@ -48,9 +52,156 @@
 
         <!-- Right Dashboard Content -->
         <div class="dashboard">
-            <h2>Dashboard KPIs</h2>
-            <!-- Later this will be populated with graphs and KPIs -->
-            <p>Select filters and implement dashboard KPIs here.</p>
+            <h2>Dashboard</h2>
+        
+            <!-- Applied Filters Box -->
+            <div class="applied-filters-box">
+                <h3>Applied Filters</h3>
+                <div class="applied-filters-content">
+                    {% for key, values in applied_filters.items() %}
+                        {% if values %}
+                            <div class="filter-tag">
+                                <strong>{{ key.replace('_', ' ').title() }}:</strong>
+                                {{ values | join(', ') }}
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            
+                <!-- Clear Button BELOW the filters -->
+                <form method="POST" action="{{ url_for('admin_dashboard') }}">
+                    <input type="hidden" name="clear_filters" value="1">
+                    <button type="submit" class="clear-btn below-clear-btn">Clear Filters</button>
+                </form>
+            </div>
+        
+        <!------ Dashboard Sections ------>
+            <div class="section-box">
+                <div class="section-header">
+                    <h3>Incidents Overview</h3>
+                </div>
+            
+                <div class="kpi-cards">
+                    <div class="kpi-card">
+                        <div class="kpi-title">Total Incidents</div>
+                        <div class="kpi-value">{{ overview_kpis.total }}</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-title">Total Injuries</div>
+                        <div class="kpi-value">{{ overview_kpis.injuries }}</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-title">Total Days Lost</div>
+                        <div class="kpi-value">{{ overview_kpis.days_lost }}</div>
+                    </div>
+                </div>
+                {{ incident_script|safe }}
+                <div class="charts-grid">
+                    <div class="chart-box">{{ incident_div|safe }}</div>
+                    <div class="chart-box">{{ injury_div|safe }}</div>
+                </div>
+            </div>
+
+            <div class="section-box">
+                <div class="section-header">
+                    <h3>Departments Overview</h3>
+                </div>
+            
+                <!-- Donut + Incidents by Department in one row -->
+                <div style="display: flex; flex-wrap: wrap; align-items: flex-start;">
+                    <!-- Donut chart (60%) -->
+                    <div class="chart-box">
+                        {{ donut_div | safe }}
+                    </div>
+                
+                    <!-- Incidents by Department KPI card (40%) -->
+                    <div style="width: 40%;">
+                        <div class="kpi-card" style="padding: 20px; height: 410px;width: 100%;">
+                            <div class="kpi-title" style="font-size: 22px; margin-bottom: 2px;display : flex; align-items: left; border-bottom: 1px solid black;padding-bottom: 10px;"><strong>Incidents by Department</strong></div>
+                
+                            <!-- Two vertical columns of department-count pairs -->
+                            <div style="display: flex; flex-direction: column; align-items: left;justify-content: space-evenly;height: 100%;">
+                                {% for dept, count in dept_kpis.by_department.items() %}
+                                    <div style="width: 100%; font-size: 18px; margin-bottom: 8px; display: flex; flex-direction: column; align-items: left;">
+                                        <p style="display: flex; align-items: left;"><strong>{{ dept }}</strong>: {{ count }}</p>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            
+                <!-- Two KPI cards below -->
+                <div class="kpi-cards" style="margin-top: 20px;">
+                    <div class="kpi-card">
+                        <div class="kpi-title">Most Incidents Department</div>
+                        <div class="kpi-value">{{ dept_kpis.most_incidents_dept }}</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-title">Most Injuries Department</div>
+                        <div class="kpi-value">{{ dept_kpis.most_injuries_dept }}</div>
+                    </div>
+                </div>
+            
+                <!-- Full-width bar chart below -->
+                {{ dept_script | safe }}
+                <div class="charts-grid" , style=" display: flex; justify-content: center;">
+                    <div class="chart-box" style="width: 900px;">
+                        {{ bar_div | safe }}
+                    </div>
+                </div>
+            </div>
+
+            <div class="section-box">
+                <div class="section-header">
+                    <h3>Incident Type Overview</h3>
+                </div>
+            
+                <!-- Donut + Incidents by Type in one row -->
+                <div style="display: flex; flex-wrap: wrap; align-items: flex-start;">
+                    <!-- Donut chart (60%) -->
+                    <div class="chart-box">
+                        {{ type_donut_div | safe }}
+                    </div>
+            
+                    <!-- Incidents by Type KPI card (40%) -->
+                    <div  style="width: 40%;">
+                        <div class="kpi-card" style="padding: 20px; height: 410px;width: 100%;">
+                            <div class="kpi-title" style="font-size: 22px; margin-bottom: 2px;display : flex; align-items: left; border-bottom: 1px solid black;padding-bottom: 10px;"><strong>Incidents by Type</strong></div>
+            
+                            <!-- Two vertical columns of type-count pairs -->
+                            <div style="display: flex; flex-direction: column; align-items: left;justify-content: space-evenly;height: 100%;">
+                                {% for itype, count in type_kpis.by_type.items() %}
+                                    <div style="width: 100%; font-size: 14px; margin-bottom: 8px; display: flex; flex-direction: column; align-items: left;">
+                                        <p style="display: flex; align-items: left;"><strong>{{ itype }}</strong>: {{ count }}</p>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            
+                <!-- Two KPI cards below -->
+                <div class="kpi-cards" style="margin-top: 20px;">
+                    <div class="kpi-card">
+                        <div class="kpi-title">Most Common Incident Type</div>
+                        <div class="kpi-value">{{ type_kpis.most_common_type }}</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-title">Most Severe Incident Type</div>
+                        <div class="kpi-value">{{ type_kpis.most_severe_type }}</div>
+                    </div>
+                </div>
+            
+                <!-- Full-width bar chart below -->
+                {{ type_script | safe }}
+                <div class="charts-grid" style="display: flex; justify-content: center;">
+                    <div class="chart-box" style="width: 900px;">
+                        {{ type_bar_div | safe }}
+                    </div>
+                </div>
+            </div>
+            
         </div>
     </div>
 

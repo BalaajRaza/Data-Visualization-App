@@ -1,7 +1,7 @@
 from flask import Flask, request, render_template, redirect, url_for, session
 from sql_connector import get_connection
 import os, secrets, hashlib, binascii, re
-from utility_script import get_filter_options
+from utility_script import *
 
 app = Flask(__name__)
 
@@ -148,17 +148,71 @@ def dashboard():
     return f"Welcome {session['user_name']}! You are logged in as {session['role']}."
 
 
-# ----------- Admin Dashboard -----------
+# ----------- Admin Routes -----------
 
-@app.route("/admin_dashboard")
+@app.route("/admin_dashboard", methods=["GET", "POST"])
 def admin_dashboard():
     if 'user_name' not in session or session.get("role") != "admin":
         return redirect(url_for("login"))
 
-    filter_options = get_filter_options()
-    print(filter_options)
-    return render_template("admin_dashboard.html", filters=filter_options, user=session['user_name'])
+    if request.method == "POST":
+        if request.form.get("clear_filters") == "1":
+            for key in filter_state.keys():
+                filter_state[key] = []
+        else:
+            for key in filter_state.keys():
+                selected = request.form.getlist(key)
+                filter_state[key] = selected if selected else []
 
+    filter_options = get_filter_options()
+    overview_kpis = incidents_overview_kpi_data()
+    script, (incident_div, injury_div) = get_incident_overview_graphs()
+
+    dept_kpis = departments_overview_kpis()
+    dept_df = fetch_incidents_by_department()
+    severity_df = fetch_department_vs_severity()
+    donut_fig = plot_incidents_donut_chart(dept_df)
+    bar_fig = plot_department_vs_severity_bar(severity_df)
+    dept_script, (donut_div, bar_div) = components((donut_fig, bar_fig))
+
+    type_kpis = incident_types_overview_kpis()
+    type_df = fetch_incidents_by_type()
+    type_severity_df = fetch_incident_type_vs_severity()
+    type_donut = plot_incident_type_donut_chart(type_df)
+    type_bar = plot_incident_type_vs_severity_bar(type_severity_df)
+    type_script, (type_donut_div, type_bar_div) = components((type_donut, type_bar))
+
+    applied = {
+        k: [("Yes" if v == '1' else "No") if k == "injured" else v for v in vals]
+        for k, vals in filter_state.items() if vals
+    }
+
+    return render_template(
+        "admin_dashboard.html",
+        filters=filter_options,
+        user=session['user_name'],
+        applied_filters=applied,
+        filter_state=filter_state,
+        
+        overview_kpis=overview_kpis,
+        incident_script=script,
+        incident_div=incident_div, 
+        injury_div=injury_div,
+
+        dept_kpis=dept_kpis,
+        dept_script=dept_script,
+        donut_div=donut_div,
+        bar_div=bar_div,
+
+        type_kpis=type_kpis,
+        type_script=type_script,
+        type_donut_div=type_donut_div,
+        type_bar_div=type_bar_div
+    )
+
+@app.route("/admin_data" , methods=["GET", "POST"])
+def admins_data():
+    pass
 
 
 

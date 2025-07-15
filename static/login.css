@@ -63,6 +63,16 @@ body, html {
     color: #ccc;
 }
 
+.login-container input:hover{
+    background: rgba(255, 255, 255, 0.3);
+}
+
+
+.login-container input:focus {
+    outline: none;
+    border: none;
+}
+
 .login-container button {
     width: 100px;
     padding: 12px;
