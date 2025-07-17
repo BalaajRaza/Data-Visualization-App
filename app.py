@@ -212,8 +212,6 @@ def admin_dashboard():
         type_bar_div=type_bar_div
     )
 
-from flask import session
-
 @app.route("/admin_data", methods=["GET", "POST"])
 def admin_data():
     if request.method == "POST":
@@ -312,11 +310,13 @@ def get_incidents():
 
     cursor.execute(data_query, data_params)
     rows = cursor.fetchall()
-    columns = ['id', 'inc_date', 'department', 'incident_type', 'severity', 'injured', 'days_lost']
+    columns = ['incident_id', 'inc_date', 'department', 'incident_type', 'severity', 'injured', 'days_lost']
     records = [dict(zip(columns, row)) for row in rows]
 
     cursor.close()
     conn.close()
+
+    print(records[0:10])
 
     return jsonify({"records": records, "total": total})
 
@@ -373,6 +373,49 @@ def export_incidents():
 
     return send_file(output, as_attachment=True, download_name="incidents.xlsx", mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
+@app.route("/get_incident/<int:incident_id>")
+def get_incident(incident_id):
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM incidents WHERE incident_id = %s", (incident_id,))
+    row = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return jsonify(row)
+
+@app.route("/update_incident/<int:incident_id>", methods=["POST"])
+def update_incident(incident_id):
+    data = request.form
+    conn = get_connection()
+    cursor = conn.cursor()
+    query = """
+    UPDATE incidents SET inc_date=%s, department=%s, incident_type=%s, severity=%s, injured=%s, days_lost=%s
+    WHERE incident_id = %s
+    """
+    cursor.execute(query, (
+        data["inc_date"],
+        data["department"],
+        data["incident_type"],
+        data["severity"],
+        data["injured"],
+        data["days_lost"],
+        incident_id
+    ))
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return '', 204
+
+
+@app.route("/delete_incident/<int:incident_id>", methods=["POST"])
+def delete_incident(incident_id):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM incidents WHERE incident_id = %s", (incident_id,))
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return '', 204
 
 
 # ----------- Logout -----------
