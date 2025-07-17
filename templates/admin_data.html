@@ -5,13 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Manage Data</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='admin_data.css') }}">
+
+    
+
 </head>
 <body>
     <!-- Top Navigation Bar -->
     <div class="navbar">
         <div class="nav-left">EHS - Admin Portal</div>
         <div class="nav-links">
-            <a href="#">Dashboard</a>
+            <a href="{{url_for('admin_dashboard')}}">Dashboard</a>
             <a href="#">Users</a>
             <a href="#">Admins</a>
             <a href="{{url_for('admin_data')}}">Data</a>
@@ -22,7 +25,6 @@
 
     <div class="container">
         <h2>Insert New Incident Record</h2>
-    
         <!-- Single Record Insert Form -->
         <form method="POST" action="#" class="insert-form">
             <div class="form-group">
@@ -32,7 +34,12 @@
     
             <div class="form-group">
                 <label for="department">Department</label>
-                <input type="text" id="department" name="department" maxlength="20" required>
+                <select id="department" name="department" required>
+                    <option value="">-- Select Department --</option>
+                    {% for dept in ["Mining", "Maintenance", "Administration", "Logistics", "Processing"] %}
+                        <option value="{{ dept }}">{{ dept }}</option>
+                    {% endfor %}
+                </select>
             </div>
     
             <div class="form-group">
@@ -74,10 +81,197 @@
                 <input type="file" name="excel_file" accept=".xlsx" required>
                 <button type="submit" class="batch-btn">Upload & Insert</button>
             </form>
+
+            {% if discarded %}
+                <div class="discarded-section">
+                    <h4>Discarded Records</h4>
+                    <ul>
+                        {% for record in discarded %}
+                        <li>Row {{ record[0] }}: {{ record[1] }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            {% endif %}
+
         </div>
     </div>
+
+    <!-- Filter Section -->
+    <div id="filter-section">
+        <h3>Filters</h3>
+        <form id="filter-form" class="filter-controls">
+            {% for field in ['year','month','department','incident_type','severity','injured'] %}
+            <select id="filter-{{field}}" name="{{field}}">
+                <option value="">{{ field.replace('_',' ').title() }}</option>
+                {% for val in filters[field] %}
+                <option value="{{ val }}">{{ val }}</option>
+                {% endfor %}
+            </select>
+            {% endfor %}
+            <button id="clear-filters" type="button">Clear Filters</button>
+            <button id="download-data" type="button">Download Excel</button>
+        </form>
+    </div>
+          
+
+    <!-- Table Section -->
+    <div id="data-table-section">
+        <table id="incident-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Department</th>
+                    <th>Incident Type</th>
+                    <th>Severity</th>
+                    <th>Injured</th>
+                    <th>Days Lost</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="incident-table-body">
+                <!-- Fetched rows will be inserted here -->
+            </tbody>
+        </table>
+        <div id="pagination-controls"></div>
+    </div>
+
+    <!-- Flash Message Container -->
+    <div class="flash-toast-container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash-toast {{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+    </div>
+
+    <script>
+        setTimeout(() => {
+            document.querySelectorAll('.flash-toast').forEach(el => {
+                el.style.opacity = '0';
+                el.style.transform = 'translateX(30px)';
+                setTimeout(() => el.remove(), 500);
+            });
+        }, 4000);
+    </script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+        const form = document.getElementById('file-upload-form');
+        const fileInput = document.getElementById('file');
     
+        form.addEventListener('submit', function () {
+            form.addEventListener('submit-success', function () {
+            fileInput.value = '';  // This clears the file input
+            });
+        });
+        });
+    </script>
+
+    <script>
+        let currentPage = 1;
+
+        function fetchTableData(page = 1) {
+            const formData = new FormData(document.getElementById("filter-form"));
+            const params = new URLSearchParams(formData);
+            params.append("page", page);
+
+            fetch(`/api/incidents?${params.toString()}`)
+                .then(res => res.json())
+                .then(data => {
+                    const tbody = document.getElementById("incident-table-body");
+                    tbody.innerHTML = "";
+
+                    data.records.forEach(item => {
+                        const tr = document.createElement("tr");
+
+                        tr.innerHTML = `
+                            <td>${item.inc_date}</td>
+                            <td>${item.department}</td>
+                            <td>${item.incident_type}</td>
+                            <td>${item.severity}</td>
+                            <td>${item.injured ? "Yes" : "No"}</td>
+                            <td>${item.days_lost}</td>
+                            <td>
+                                <button class="action-btn edit-btn" onclick="editIncident(${item.id})">Edit</button>
+                                <button class="action-btn delete-btn" onclick="deleteIncident(${item.id})">Delete</button>
+                            </td>
+                        `;
+
+                        tbody.appendChild(tr);
+                    });
+
+                    renderPagination(data.total, page);
+                });
+        }
+
+        function renderPagination(total, page) {
+            const perPage = 10;
+            const totalPages = Math.ceil(total / perPage);
+            const ctr = document.getElementById("pagination-controls");
+            ctr.innerHTML = "";
+
+            // Prev button
+            const prev = document.createElement("button");
+            prev.textContent = "<";
+            prev.disabled = page === 1;
+            prev.onclick = () => fetchTableData(page - 1);
+            ctr.appendChild(prev);
+
+            // Active page
+            const btn = document.createElement("button");
+            btn.textContent = page;
+            btn.className = "active";
+            ctr.appendChild(btn);
+
+            // Next button
+            const next = document.createElement("button");
+            next.textContent = ">";
+            next.disabled = page === totalPages || totalPages === 0;
+            next.onclick = () => fetchTableData(page + 1);
+            ctr.appendChild(next);
+        }
+    
+        const filterFields = ['year','month','department','incident_type','severity','injured'];
+        filterFields.forEach(f => {
+            document.getElementById(`filter-${f}`).addEventListener('change', () => {
+                currentPage = 1;
+                fetchTableData(1);
+            });
+        });
+
+        document.getElementById("clear-filters").addEventListener('click', () => {
+            filterFields.forEach(f => {
+                document.getElementById(`filter-${f}`).value = "";
+            });
+            currentPage = 1;
+            fetchTableData(1);
+        });
+
+
+        document.getElementById("filter-form").addEventListener("submit", function(e) {
+            e.preventDefault();
+            currentPage = 1;
+            fetchTableData(currentPage);
+        });
+
+        // Initial fetch
+        fetchTableData(currentPage);
+
+        document.getElementById("download-data").addEventListener('click', () => {
+            const params = new URLSearchParams();
+            filterFields.forEach(f => {
+                const val = document.getElementById(`filter-${f}`).value;
+                if (val) params.append(f, val);
+            });
+            window.location.href = `/export/incidents?${params.toString()}`;
+        });
+    </script>
 
     
 </body>
+    
+
+
 </html>

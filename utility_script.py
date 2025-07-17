@@ -4,12 +4,14 @@ from bokeh.models import ColumnDataSource, HoverTool , Legend , FactorRange , Le
 from bokeh.palettes import Category10
 from bokeh.transform import factor_cmap
 import numpy as np
+import pandas as pd
 
 
 from math import pi
 from bokeh.transform import cumsum
 import pandas as pd
 from sql_connector import get_connection
+from datetime import datetime
 
 filter_state = {
     "year": [],
@@ -585,3 +587,110 @@ def plot_incident_type_vs_severity_bar(df):
 
     return p
 
+
+
+#     ADMIN DATA SECTION UTILITY FUNCTIONS     #
+def insert_incident_record(data):
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        query = """
+        INSERT INTO incidents (inc_date, department, incident_type, severity, injured, days_lost)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        """
+
+        cursor.execute(query, (
+            data["inc_date"],
+            data["department"],
+            data["incident_type"],
+            data["severity"],
+            data["injured"],
+            data["days_lost"]
+        ))
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return True
+
+    except Exception as e:
+        print("Insert error:", e)
+        return False
+    
+
+ALLOWED_DEPARTMENTS = ["Mining", "Maintenance", "Administration", "Logistics", "Processing"]
+
+def validate_excel_file(file_path):
+    expected_columns = [
+        "Incident Date", "Department", "Incident Type",
+        "Severity Level", "Injured", "Days Lost"
+    ]
+
+    try:
+        df = pd.read_excel(file_path)
+    except Exception as e:
+        return False, [], f"Failed to read Excel file: {e}"
+
+    if list(df.columns) != expected_columns:
+        return False, [], "Incorrect columns in the file."
+
+    valid_records = []
+    invalid_records = []
+
+    for index, row in df.iterrows():
+        try:
+            inc_date = pd.to_datetime(row["Incident Date"], errors='raise')
+            department = row["Department"]
+            incident_type = str(row["Incident Type"])
+            severity = int(row["Severity Level"])
+            injured = int(row["Injured"])
+            days_lost = int(row["Days Lost"])
+
+            # Validate department
+            if department not in ALLOWED_DEPARTMENTS:
+                raise ValueError("Invalid department")
+
+            # Validate severity
+            if severity < 1 or severity > 5:
+                raise ValueError("Severity level out of range")
+
+            # Validate injured
+            if injured not in [0, 1]:
+                raise ValueError("Injured value must be 0 or 1")
+
+            valid_records.append({
+                "inc_date": inc_date,
+                "department": department,
+                "incident_type": incident_type,
+                "severity": severity,
+                "injured": injured,
+                "days_lost": days_lost
+            })
+
+        except Exception as e:
+            invalid_records.append((index + 2, str(e)))  # +2: accounting for header and 0-index
+
+    return True, valid_records, invalid_records
+
+def insert_batch_records(records):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    query = """
+        INSERT INTO incidents (inc_date, department, incident_type, severity, injured, days_lost)
+        VALUES (%s, %s, %s, %s, %s, %s)
+    """
+    for record in records:
+        cursor.execute(query, (
+            record["inc_date"],
+            record["department"],
+            record["incident_type"],
+            record["severity"],
+            record["injured"],
+            record["days_lost"]
+        ))
+
+    conn.commit()
+    cursor.close()
+    conn.close()

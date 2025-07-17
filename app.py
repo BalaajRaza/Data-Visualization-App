@@ -1,6 +1,8 @@
-from flask import Flask, request, render_template, redirect, url_for, session
+from flask import Flask, request, render_template, redirect, url_for, session , flash , jsonify , send_file
 from sql_connector import get_connection
 import os, secrets, hashlib, binascii, re
+import pandas as pd
+from io import BytesIO
 from utility_script import *
 
 app = Flask(__name__)
@@ -210,9 +212,166 @@ def admin_dashboard():
         type_bar_div=type_bar_div
     )
 
-@app.route("/admin_data" , methods=["GET", "POST"])
+from flask import session
+
+@app.route("/admin_data", methods=["GET", "POST"])
 def admin_data():
-    return render_template("admin_data.html") 
+    if request.method == "POST":
+        if "inc_date" in request.form:
+            data = {
+                "inc_date": request.form.get("inc_date"),
+                "department": request.form.get("department"),
+                "incident_type": request.form.get("incident_type"),
+                "severity": request.form.get("severity"),
+                "injured": request.form.get("injured"),
+                "days_lost": request.form.get("days_lost")
+            }
+
+            success = insert_incident_record(data)
+            if success:
+                flash("Record inserted successfully!", "success")
+            else:
+                flash("Failed to insert record. Please try again.", "error")
+
+        elif "excel_file" in request.files:
+            file = request.files["excel_file"]
+            if not file.filename.endswith(".xlsx"):
+                flash("Only .xlsx files are supported.", "error")
+            else:
+                success, valid, discarded = validate_excel_file(file)
+                if success and valid:
+                    insert_batch_records(valid)
+                    flash(f"{len(valid)} records inserted successfully.", "success")
+                else:
+                    flash("No valid records found to insert.", "error")
+
+                if discarded:
+                    session['discarded'] = discarded  # store temporarily
+
+        return redirect(url_for("admin_data")) 
+
+    discarded = session.pop("discarded", [])
+
+    filters = get_filter_options()
+    return render_template("admin_data.html", filters=filters, user=session['user_name'], discarded=discarded)
+
+
+@app.route('/api/incidents', methods=['GET'])
+def get_incidents():
+    page = int(request.args.get('page', 1))
+    per_page = 10
+    offset = (page - 1) * per_page
+
+    filters = {
+        'year': request.args.get('year'),
+        'month': request.args.get('month'),
+        'department': request.args.get('department'),
+        'incident_type': request.args.get('incident_type'),
+        'severity': request.args.get('severity'),
+        'injured': request.args.get('injured')
+    }
+
+    base_query = """
+        SELECT incident_id, inc_date, department, incident_type, severity, injured, days_lost
+        FROM incidents
+        WHERE 1=1
+    """
+    conditions = []
+    params = []
+
+    if filters['year']:
+        conditions.append("YEAR(inc_date) = %s")
+        params.append(filters['year'])
+    if filters['month']:
+        conditions.append("MONTH(inc_date) = %s")
+        params.append(filters['month'])
+    if filters['department']:
+        conditions.append("department = %s")
+        params.append(filters['department'])
+    if filters['incident_type']:
+        conditions.append("incident_type = %s")
+        params.append(filters['incident_type'])
+    if filters['severity']:
+        conditions.append("severity = %s")
+        params.append(filters['severity'])
+    if filters['injured'] in ['0', '1']:
+        conditions.append("injured = %s")
+        params.append(filters['injured'])
+
+    if conditions:
+        base_query += " AND " + " AND ".join(conditions)
+
+    count_query = f"SELECT COUNT(*) FROM ({base_query}) AS sub"
+    data_query = base_query + " ORDER BY inc_date DESC LIMIT %s OFFSET %s"
+    data_params = params + [per_page, offset]
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(count_query, params)
+    total = cursor.fetchone()[0]
+
+    cursor.execute(data_query, data_params)
+    rows = cursor.fetchall()
+    columns = ['id', 'inc_date', 'department', 'incident_type', 'severity', 'injured', 'days_lost']
+    records = [dict(zip(columns, row)) for row in rows]
+
+    cursor.close()
+    conn.close()
+
+    return jsonify({"records": records, "total": total})
+
+
+
+
+@app.route('/export/incidents')
+def export_incidents():
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Read filter values from URL query params
+    filters = {
+        'year': request.args.get('year'),
+        'month': request.args.get('month'),
+        'department': request.args.get('department'),
+        'incident_type': request.args.get('incident_type'),
+        'severity': request.args.get('severity'),
+        'injured': request.args.get('injured')
+    }
+
+    query = "SELECT inc_date, department, incident_type, severity, injured, days_lost FROM incidents WHERE 1=1"
+    params = []
+
+    if filters['year']:
+        query += " AND YEAR(inc_date) = %s"
+        params.append(filters['year'])
+    if filters['month']:
+        query += " AND MONTH(inc_date) = %s"
+        params.append(filters['month'])
+    if filters['department']:
+        query += " AND department = %s"
+        params.append(filters['department'])
+    if filters['incident_type']:
+        query += " AND incident_type = %s"
+        params.append(filters['incident_type'])
+    if filters['severity']:
+        query += " AND severity = %s"
+        params.append(filters['severity'])
+    if filters['injured']:
+        query += " AND injured = %s"
+        params.append(filters['injured'])
+
+    # Fetch data using pandas
+    df = pd.read_sql(query, conn, params=params)
+
+    # Convert to Excel file
+    output = BytesIO()
+    df.to_excel(output, index=False)
+    output.seek(0)
+
+    cursor.close()
+    conn.close()
+
+    return send_file(output, as_attachment=True, download_name="incidents.xlsx", mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 
 
