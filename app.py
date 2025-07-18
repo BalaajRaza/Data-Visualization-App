@@ -417,6 +417,92 @@ def delete_incident(incident_id):
     conn.close()
     return '', 204
 
+# ----------- Admin Management -----------
+
+@app.route("/admin_management", methods=["GET", "POST"])
+def admin_management():
+    message = None
+    success = None
+
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        email = request.form.get("email", "").strip()
+        password = request.form.get("password", "").strip()
+
+        success, message = insert_admin(username, email, password)
+
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT user_id, user_name, email FROM users WHERE user_role = 'admin'")
+    admins = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    return render_template(
+        "admin_management.html",
+        user=session["user_name"],
+        admins=admins,
+        success=success,
+        message=message
+    )
+
+from flask import jsonify
+
+@app.route("/delete_admin/<int:admin_id>", methods=["POST"])
+def delete_admin(admin_id):
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM users WHERE user_id = %s AND user_role = 'admin'", (admin_id,))
+        conn.commit()
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+    finally:
+        cursor.close()
+        conn.close()
+
+
+@app.route("/update_admin/<int:admin_id>", methods=["POST"])
+def update_admin(admin_id):
+    data = request.get_json()
+    username = data.get("username", "").strip()
+    email = data.get("email", "").strip()
+    password = data.get("password", "").strip()
+    current_user_id = session.get("user_id")
+
+    if not username or not email:
+        return jsonify({"success": False, "error": "Username and email are required."})
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        if int(current_user_id) == int(admin_id) and password:
+            # update with password
+            salt = generate_salt()
+            hashed_password = hash_password(password, salt)
+            cursor.execute("""
+                UPDATE users
+                SET user_name = %s, email = %s, user_password = %s
+                WHERE user_id = %s
+            """, (username, email, hashed_password, admin_id))
+        else:
+            # update without password
+            cursor.execute("""
+                UPDATE users
+                SET user_name = %s, email = %s
+                WHERE user_id = %s
+            """, (username, email, admin_id))
+
+        conn.commit()
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+    finally:
+        cursor.close()
+        conn.close()
+
+
 
 # ----------- Logout -----------
 

@@ -16,7 +16,7 @@
         <div class="nav-links">
             <a href="{{url_for('admin_dashboard')}}">Dashboard</a>
             <a href="#">Users</a>
-            <a href="#">Admins</a>
+            <a href="{{url_for('admin_management')}}">Admins</a>
             <a href="{{url_for('admin_data')}}">Data</a>
             <span class="welcome">Welcome, {{ user }}</span>
             <a href="{{ url_for('logout') }}" class="logout-btn">Logout</a>

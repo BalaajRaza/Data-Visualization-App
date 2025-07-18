@@ -3,15 +3,15 @@ from bokeh.embed import components
 from bokeh.models import ColumnDataSource, HoverTool , Legend , FactorRange , LegendItem , LabelSet
 from bokeh.palettes import Category10
 from bokeh.transform import factor_cmap
+
 import numpy as np
 import pandas as pd
-
-
 from math import pi
 from bokeh.transform import cumsum
 import pandas as pd
 from sql_connector import get_connection
 from datetime import datetime
+import secrets, hashlib, binascii
 
 filter_state = {
     "year": [],
@@ -694,3 +694,51 @@ def insert_batch_records(records):
     conn.commit()
     cursor.close()
     conn.close()
+
+
+# ------- ADMIN SECTION ------- #
+def generate_salt():
+    return secrets.token_hex(16)
+
+def hash_password(password, salt, iterations=1000):
+    hashed = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), iterations)
+    return binascii.hexlify(hashed).decode() + salt  # hash + salt
+
+def insert_admin(username, email, password):
+    """Inserts an admin into the database.
+    
+    Returns:
+        (success: bool, message: str)
+    """
+    if len(username) < 6:
+        return False, "Username must be at least 6 characters."
+    if '@' not in email or '.' not in email:
+        return False, "Invalid email address."
+    if len(password) < 8 or not any(c.isupper() for c in password) \
+       or not any(c.islower() for c in password) or not any(c.isdigit() for c in password):
+        return False, "Password must be at least 8 characters long and contain upper, lower, and digit."
+
+    salt = generate_salt()
+    hashed_password = hash_password(password, salt)
+
+    conn = get_connection()
+    if not conn:
+        return False, "Database connection failed."
+
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute(
+            "INSERT INTO users (user_name, email, user_password, user_role) VALUES (%s, %s, %s, %s)",
+            (username, email, hashed_password, "admin")
+        )
+        conn.commit()
+        return True, "Admin inserted successfully."
+    except Exception as e:
+        conn.rollback()
+        if "Duplicate entry" in str(e):
+            return False, "Email already exists."
+        return False, f"Database error: {e}"
+    finally:
+        cursor.close()
+        conn.close()
