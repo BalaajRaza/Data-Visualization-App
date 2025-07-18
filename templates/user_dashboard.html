@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>User Dashboard</title>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='user_dashboard.css') }}"
+    />
+    <link
+      href="https://cdn.bokeh.org/bokeh/release/bokeh-3.7.3.min.css"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.bokeh.org/bokeh/release/bokeh-3.7.3.min.js"></script>
+  </head>
+  <body>
+    <!-- Top Navigation Bar -->
+    <div class="navbar">
+      <div class="nav-left">EHS - User Portal</div>
+      <div class="nav-links">
+        <a href="#">Dashboard</a>
+
+        <span class="welcome">Welcome, {{ user }}</span>
+        <a href="{{ url_for('logout') }}" class="logout-btn">Logout</a>
+      </div>
+    </div>
+
+    <!-- Main Section -->
+    <div class="main-content">
+      <!-- Left Filters Panel -->
+      <div class="filters">
+        <h3>Filters</h3>
+        <form id="filter-form">
+          {% for key, options in filters.items() %}
+          <div class="filter-group">
+            <label>{{ key.replace("_", " ").title() }}</label>
+            <div class="checkbox-group">
+              {% for option in options %}
+              <label>
+                <input
+                  type="checkbox"
+                  name="{{ key }}"
+                  value="{{ option }}"
+                  onchange="applyFilters()"
+                  {%
+                  if
+                  option
+                  in
+                  (filter_state.get(key)
+                  or
+                  [])
+                  %}checked{%
+                  endif
+                  %}
+                />
+                {% if key == 'injured' %} {{ 'Yes' if option == '1' else 'No' }}
+                {% else %} {{ option }} {% endif %}
+              </label>
+              {% endfor %}
+            </div>
+          </div>
+          {% endfor %}
+        </form>
+      </div>
+
+      <!-- Right Dashboard Content -->
+      <div class="dashboard">
+        <h2>Dashboard</h2>
+        <!-- Generate Report Button -->
+
+        <!-- Applied Filters Box -->
+        <div class="applied-filters-box">
+          <h3>Applied Filters</h3>
+          <div class="applied-filters-content">
+            {% for key, values in applied_filters.items() %} {% if values %}
+            <div class="filter-tag">
+              <strong>{{ key.replace('_', ' ').title() }}:</strong>
+              {{ values | join(', ') }}
+            </div>
+            {% endif %} {% endfor %}
+          </div>
+
+          <!-- Clear Button -->
+          <button
+            type="button"
+            class="clear-btn below-clear-btn"
+            onclick="clearFilters()"
+          >
+            Clear Filters
+          </button>
+        </div>
+
+        <div
+          style="
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-bottom: 20px;
+          "
+        >
+          <button class="clear-btn" onclick="getInsights()">
+            Get Insights
+          </button>
+          <button onclick="openReportModal()" class="clear-btn">
+            Generate Report
+          </button>
+        </div>
+
+        <!-- Report Modal -->
+        <div id="report-modal" class="modal" style="display: none">
+          <div class="modal-content">
+            <span class="close-btn" onclick="closeReportModal()">&times;</span>
+            <h3>Generate Report</h3>
+            <form
+              id="report-form"
+              method="POST"
+              action="{{ url_for('generate_report') }}"
+            >
+              <label>
+                <input
+                  type="checkbox"
+                  name="include_insights"
+                  id="include_insights"
+                />
+                Include AI Insights
+              </label>
+              <div style="margin-top: 20px">
+                <button type="submit" class="submit-btn">
+                  Download Report
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Dashboard Sections -->
+        <div class="section-box">
+          <div class="section-header">
+            <h3>Incidents Overview</h3>
+          </div>
+
+          <div class="kpi-cards">
+            <div class="kpi-card">
+              <div class="kpi-title">Total Incidents</div>
+              <div class="kpi-value">{{ overview_kpis.total }}</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-title">Total Injuries</div>
+              <div class="kpi-value">{{ overview_kpis.injuries }}</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-title">Total Days Lost</div>
+              <div class="kpi-value">{{ overview_kpis.days_lost }}</div>
+            </div>
+          </div>
+          {{ incident_script|safe }}
+          <div class="charts-grid">
+            <div class="chart-box">{{ incident_div|safe }}</div>
+            <div class="chart-box">{{ injury_div|safe }}</div>
+          </div>
+        </div>
+
+        <div class="section-box">
+          <div class="section-header">
+            <h3>Departments Overview</h3>
+          </div>
+
+          <div style="display: flex; flex-wrap: wrap; align-items: flex-start">
+            <div class="chart-box">{{ donut_div | safe }}</div>
+            <div style="width: 40%">
+              <div
+                class="kpi-card"
+                style="padding: 20px; height: 410px; width: 100%"
+              >
+                <div
+                  class="kpi-title"
+                  style="
+                    font-size: 22px;
+                    margin-bottom: 2px;
+                    display: flex;
+                    align-items: left;
+                    border-bottom: 1px solid black;
+                    padding-bottom: 10px;
+                  "
+                >
+                  <strong>Incidents by Department</strong>
+                </div>
+                <div
+                  style="
+                    display: flex;
+                    flex-direction: column;
+                    align-items: left;
+                    justify-content: space-evenly;
+                    height: 100%;
+                  "
+                >
+                  {% for dept, count in dept_kpis.by_department.items() %}
+                  <div
+                    style="
+                      width: 100%;
+                      font-size: 18px;
+                      margin-bottom: 8px;
+                      display: flex;
+                      flex-direction: column;
+                      align-items: left;
+                    "
+                  >
+                    <p style="display: flex; align-items: left">
+                      <strong>{{ dept }}</strong>: {{ count }}
+                    </p>
+                  </div>
+                  {% endfor %}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="kpi-cards" style="margin-top: 20px">
+            <div class="kpi-card">
+              <div class="kpi-title">Most Incidents Department</div>
+              <div class="kpi-value">{{ dept_kpis.most_incidents_dept }}</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-title">Most Injuries Department</div>
+              <div class="kpi-value">{{ dept_kpis.most_injuries_dept }}</div>
+            </div>
+          </div>
+
+          {{ dept_script | safe }}
+          <div
+            class="charts-grid"
+            style="display: flex; justify-content: center"
+          >
+            <div class="chart-box" style="width: 900px">
+              {{ bar_div | safe }}
+            </div>
+          </div>
+        </div>
+
+        <div class="section-box">
+          <div class="section-header">
+            <h3>Incident Type Overview</h3>
+          </div>
+
+          <div style="display: flex; flex-wrap: wrap; align-items: flex-start">
+            <div class="chart-box">{{ type_donut_div | safe }}</div>
+
+            <div style="width: 40%">
+              <div
+                class="kpi-card"
+                style="padding: 20px; height: 410px; width: 100%"
+              >
+                <div
+                  class="kpi-title"
+                  style="
+                    font-size: 22px;
+                    margin-bottom: 2px;
+                    display: flex;
+                    align-items: left;
+                    border-bottom: 1px solid black;
+                    padding-bottom: 10px;
+                  "
+                >
+                  <strong>Incidents by Type</strong>
+                </div>
+                <div
+                  style="
+                    display: flex;
+                    flex-direction: column;
+                    align-items: left;
+                    justify-content: space-evenly;
+                    height: 100%;
+                  "
+                >
+                  {% for itype, count in type_kpis.by_type.items() %}
+                  <div
+                    style="
+                      width: 100%;
+                      font-size: 18px;
+                      margin-bottom: 8px;
+                      display: flex;
+                      flex-direction: column;
+                      align-items: left;
+                    "
+                  >
+                    <p style="display: flex; align-items: left">
+                      <strong>{{ itype }}</strong>: {{ count }}
+                    </p>
+                  </div>
+                  {% endfor %}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="kpi-cards" style="margin-top: 20px">
+            <div class="kpi-card">
+              <div class="kpi-title">Most Common Incident Type</div>
+              <div class="kpi-value">{{ type_kpis.most_common_type }}</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-title">Most Severe Incident Type</div>
+              <div class="kpi-value">{{ type_kpis.most_severe_type }}</div>
+            </div>
+          </div>
+
+          {{ type_script | safe }}
+          <div
+            class="charts-grid"
+            style="display: flex; justify-content: center"
+          >
+            <div class="chart-box" style="width: 900px">
+              {{ type_bar_div | safe }}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      function openReportModal() {
+        document.getElementById("report-modal").style.display = "flex";
+      }
+
+      function closeReportModal() {
+        document.getElementById("report-modal").style.display = "none";
+      }
+
+      function applyFilters() {
+        const form = document.getElementById("filter-form");
+        const formData = new FormData(form);
+        const filters = {};
+
+        for (const [key, value] of formData.entries()) {
+          if (!filters[key]) filters[key] = [];
+          filters[key].push(value);
+        }
+
+        fetch("/update_dashboard", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(filters),
+        })
+          .then((response) => response.json())
+          .then((data) => updateDashboard(data));
+      }
+
+      function clearFilters() {
+        document
+          .querySelectorAll('#filter-form input[type="checkbox"]')
+          .forEach((cb) => (cb.checked = false));
+
+        fetch("/update_dashboard", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({}), // send empty filters
+        })
+          .then((response) => response.json())
+          .then((data) => updateDashboard(data));
+      }
+
+      function updateDashboard(data) {
+        // Update KPI values
+        const kpiValues = document.querySelectorAll(".kpi-value");
+        kpiValues[0].innerText = data.overview_kpis.total;
+        kpiValues[1].innerText = data.overview_kpis.injuries;
+        kpiValues[2].innerText = data.overview_kpis.days_lost;
+
+        // Update Applied Filters
+        const appliedDiv = document.querySelector(".applied-filters-content");
+        appliedDiv.innerHTML = "";
+        for (const [key, values] of Object.entries(data.applied_filters)) {
+          if (values.length > 0) {
+            appliedDiv.innerHTML += `
+                <div class="filter-tag">
+                  <strong>${key.replaceAll("_", " ").toUpperCase()}:</strong>
+                  ${values.join(", ")}
+                </div>`;
+          }
+        }
+
+        // Clear & Embed Bokeh Plots
+        const chartContainers = document.querySelectorAll(".chart-box");
+
+        if (chartContainers.length >= 6) {
+          chartContainers[0].innerHTML = "";
+          Bokeh.embed.embed_item(data.incident_script, chartContainers[0]);
+
+          chartContainers[1].innerHTML = "";
+          Bokeh.embed.embed_item(data.injury_div, chartContainers[1]);
+
+          chartContainers[2].innerHTML = "";
+          Bokeh.embed.embed_item(data.donut_div, chartContainers[2]);
+
+          chartContainers[3].innerHTML = "";
+          Bokeh.embed.embed_item(data.bar_div, chartContainers[3]);
+
+          chartContainers[4].innerHTML = "";
+          Bokeh.embed.embed_item(data.type_donut_div, chartContainers[4]);
+
+          chartContainers[5].innerHTML = "";
+          Bokeh.embed.embed_item(data.type_bar_div, chartContainers[5]);
+        }
+
+        // Update Department KPIs
+        const deptKPI = document.querySelectorAll(".kpi-card .kpi-value")[3];
+        const deptInjury = document.querySelectorAll(".kpi-card .kpi-value")[4];
+        if (deptKPI && deptInjury) {
+          deptKPI.innerText = data.dept_kpis.most_incidents_dept;
+          deptInjury.innerText = data.dept_kpis.most_injuries_dept;
+        }
+
+        // Update Type KPIs
+        const typeCommon = document.querySelectorAll(".kpi-card .kpi-value")[5];
+        const typeSevere = document.querySelectorAll(".kpi-card .kpi-value")[6];
+        if (typeCommon && typeSevere) {
+          typeCommon.innerText = data.type_kpis.most_common_type;
+          typeSevere.innerText = data.type_kpis.most_severe_type;
+        }
+      }
+    </script>
+  </body>
+</html>

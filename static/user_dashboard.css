@@ -1,0 +1,385 @@
+/* Import Google Fonts if needed (optional) */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap');
+
+body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Poppins', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f5f5f5;
+    overflow-x: hidden;
+}
+
+/* Navigation Bar */
+.navbar {
+    height: 70px;  /* Wider height */
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 40px;
+    background: linear-gradient(270deg, #000000, #333333); /* BNW gradient */
+    color: #ffffff;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    font-weight: 500;
+    position: sticky;
+    overflow:visible;
+}
+
+.nav-left {
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: 1px;
+}
+
+.nav-links {
+    display: flex;
+    gap: 30px;
+    align-items: center;
+}
+
+.nav-links a {
+    color: white;
+    text-decoration: none;
+    font-size: 16px;
+    transition: color 0.3s ease;
+}
+
+.nav-links a:hover {
+    color: #bbbbbb;
+}
+
+.nav-links .welcome {
+    font-size: 14px;
+    font-style: italic;
+    margin-left: 20px;
+    color: #ccc;
+}
+
+.nav-links .logout-btn {
+    background-color: #fff;
+    color: #000;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-weight: bold;
+    text-decoration: none;
+    transition: background 0.3s ease, color 0.3s ease;
+}
+
+.nav-links .logout-btn:hover {
+    background-color: #e5e5e5;
+    color: #000;
+}
+
+
+.main-content {
+    display: flex;
+    overflow-y: auto;
+    margin-bottom: 20px;
+    
+}
+
+.filters {
+    width: 20%;
+    background-color: #fdfdfd;
+    padding: 15px 20px;
+    border-right: 1px solid #ddd;
+    font-family: 'Poppins', sans-serif;
+
+    position: sticky;
+    height: 85vh;
+    overflow-y: auto;
+
+    box-shadow: 2px 0 5px rgba(0,0,0,0.05);
+    z-index: 10;
+}
+
+.filters h3 {
+    font-size: 20px;
+    margin-bottom: 20px;
+    color: #333;
+}
+
+.filter-group label {
+    font-weight: 600;
+    color: #444;
+}
+
+.checkbox-group label {
+    background-color: #ffffff;
+    border: 1px solid #ccc;
+    transition: background 0.2s ease;
+}
+
+.filter-group {
+    margin-bottom: 25px;
+}
+
+.filter-group label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 600;
+    color: #444;
+}
+
+.checkbox-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 8px;
+}
+
+.checkbox-group label {
+    display: flex;
+    align-items: center;
+    background-color: #ffffff;
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+    cursor: pointer;
+    font-size: 14px;
+    white-space: nowrap;
+    transition: background-color 0.2s ease;
+}
+
+.checkbox-group label:hover {
+    background-color: #f0f0f0;
+}
+
+.checkbox-group input[type="checkbox"] {
+    margin-right: 6px;
+}
+
+
+.filters button[type="submit"] {
+    margin-top: 20px;
+    padding: 10px 16px;
+    background-color: #333;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.3s ease;
+    position: sticky;
+}
+
+.filters button[type="submit"]:hover {
+    background-color: #555;
+}
+
+.filters form {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.filters .filter-group {
+    flex-shrink: 0;
+}
+
+.filters button[type="submit"] {
+    margin-top: auto;
+    position: sticky;
+    bottom: 10px;
+    z-index: 10;
+    background-color: #333;
+    color: white;
+}
+
+
+.dashboard {
+    width: 80%;
+    padding: 10px;
+}
+
+.applied-filters-box {
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 20px 25px;
+    margin-bottom: 30px;
+    color: #333333;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    font-family: 'Poppins', sans-serif;
+    border: 1px solid #dddddd;
+    transition: all 0.3s ease;
+}
+
+.applied-filters-box h3 {
+    margin-top: 0;
+    font-size: 20px;
+    font-weight: 600;
+    margin-bottom: 15px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #e0e0e0;
+    color: #222222;
+}
+
+.applied-filters-content {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.filter-tag {
+    background-color: #f2f2f2;
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-size: 13px;
+    color: #333333;
+    border: 1px solid #cccccc;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.03);
+    transition: background 0.3s;
+}
+
+.filter-tag:hover {
+    background-color: #e2e2e2;
+}
+
+
+.clear-btn {
+    background-color: #333;
+    color: #fff;
+    padding: 10px 16px;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: 'Poppins', sans-serif;
+    font-size: 14px;
+    transition: background-color 0.3s ease;
+}
+
+.clear-btn:hover {
+    background-color: #555;
+}
+
+/* Extra spacing when button is below */
+.below-clear-btn {
+    margin-top: 20px;
+}
+
+
+
+/*---- DASHBOARD SECTIONS STYLING ----*/
+
+.section-box {
+    background: #fff;
+    border-radius: 12px;
+    padding: 25px;
+    margin-bottom: 30px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+    border: 1px solid #ddd;
+}
+
+.section-header h3 {
+    font-size: 22px;
+    font-weight: 600;
+    margin-bottom: 20px;
+    color: #222;
+}
+
+.kpi-cards {
+    display: flex;
+    gap: 30px;
+    flex-wrap: wrap;
+}
+
+.kpi-card {
+    flex: 1;
+    min-width: 200px;
+    padding: 20px;
+    background-color: #f9f9f9;
+    border: 2px solid #ccc;
+    border-radius: 10px;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);
+    text-align: center;
+}
+
+.kpi-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #555;
+    margin-bottom: 10px;
+}
+
+.kpi-value {
+    font-size: 28px;
+    font-weight: bold;
+    color: #333;
+}
+
+.charts-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    width: 100%;
+    overflow: hidden;
+}
+
+.chart-box {
+    background: #fff;
+    padding: 10px;
+    border-radius: 8px;
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+.toast {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    min-width: 250px;
+    padding: 15px 20px;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 500;
+    color: #fff;
+    background-color: #333;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.5s, visibility 0.5s;
+    z-index: 1000;
+}
+
+.toast.show {
+    opacity: 1;
+    visibility: visible;
+}
+
+.toast.success {
+    background-color: #28a745;
+}
+
+.toast.error {
+    background-color: #dc3545;
+}
+
+.modal {
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .modal-content {
+    background: #fff;
+    padding: 20px;
+    width: 400px;
+    border-radius: 8px;
+    position: relative;
+  }
+  
+  .close-btn {
+    position: absolute;
+    top: 10px;
+    right: 14px;
+    font-size: 20px;
+    cursor: pointer;
+  }
+  

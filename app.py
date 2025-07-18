@@ -4,6 +4,9 @@ import os, secrets, hashlib, binascii, re
 import pandas as pd
 from io import BytesIO
 from utility_script import *
+import io
+from fpdf import FPDF
+from bokeh.embed import json_item
 
 app = Flask(__name__)
 
@@ -31,6 +34,25 @@ def verify_password(stored_hash, input_password, iterations=1000):
     real_hash = stored_hash[:-32]
     check_hash = hashlib.pbkdf2_hmac('sha256', input_password.encode(), salt.encode(), iterations)
     return real_hash == binascii.hexlify(check_hash).decode()
+
+# ----------- Session Security Utilities ----------- #
+from functools import wraps
+
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if session.get("role") != "admin":
+            return redirect(url_for('dashboard'))  # or a 403 page
+        return f(*args, **kwargs)
+    return decorated_function
 
 
 # ----------- Signup -----------
@@ -83,6 +105,8 @@ def signup():
             session['user_id'] = user[0]
             session['user_name'] = user[1]
             session['role'] = user[4]
+            session['token'] = hashlib.sha256(os.urandom(32)).hexdigest()
+            session.permanent = True
             return redirect('/dashboard')
 
         except Exception as e:
@@ -120,6 +144,8 @@ def login():
                 session['user_id'] = user['user_id']
                 session['user_name'] = user['user_name']
                 session['role'] = user['user_role']
+                session['token'] = hashlib.sha256(os.urandom(32)).hexdigest()
+                session.permanent = True
 
                 if user['user_role'] == 'user':
                     return redirect(url_for("dashboard"))
@@ -143,19 +169,146 @@ def login():
 
 # ----------- User Dashboard -----------
 
-@app.route("/dashboard")
+@app.route("/dashboard" , methods = ["GET" , "POST"])
+@login_required
 def dashboard():
-    if 'user_name' not in session:
-        return redirect(url_for("login"))
-    return f"Welcome {session['user_name']}! You are logged in as {session['role']}."
+    if request.method == "POST":
+        if request.form.get("clear_filters") == "1":
+            for key in filter_state.keys():
+                filter_state[key] = []
+        else:
+            for key in filter_state.keys():
+                selected = request.form.getlist(key)
+                filter_state[key] = selected if selected else []
+
+    filter_options = get_filter_options()
+    overview_kpis = incidents_overview_kpi_data()
+    script, (incident_div, injury_div) = get_incident_overview_graphs()
+
+    dept_kpis = departments_overview_kpis()
+    dept_df = fetch_incidents_by_department()
+    severity_df = fetch_department_vs_severity()
+    donut_fig = plot_incidents_donut_chart(dept_df)
+    bar_fig = plot_department_vs_severity_bar(severity_df)
+    dept_script, (donut_div, bar_div) = components((donut_fig, bar_fig))
+
+    type_kpis = incident_types_overview_kpis()
+    type_df = fetch_incidents_by_type()
+    type_severity_df = fetch_incident_type_vs_severity()
+    type_donut = plot_incident_type_donut_chart(type_df)
+    type_bar = plot_incident_type_vs_severity_bar(type_severity_df)
+    type_script, (type_donut_div, type_bar_div) = components((type_donut, type_bar))
+
+    applied = {
+        k: [("Yes" if v == '1' else "No") if k == "injured" else v for v in vals]
+        for k, vals in filter_state.items() if vals
+    }
+
+    return render_template(
+        "user_dashboard.html",
+        filters=filter_options,
+        user=session['user_name'],
+        applied_filters=applied,
+        filter_state=filter_state,
+        
+        overview_kpis=overview_kpis,
+        incident_script=script,
+        incident_div=incident_div, 
+        injury_div=injury_div,
+
+        dept_kpis=dept_kpis,
+        dept_script=dept_script,
+        donut_div=donut_div,
+        bar_div=bar_div,
+
+        type_kpis=type_kpis,
+        type_script=type_script,
+        type_donut_div=type_donut_div,
+        type_bar_div=type_bar_div
+    )
+
+
+@app.route("/update_dashboard", methods=["POST"])
+@login_required
+def update_dashboard():
+    data = request.get_json()
+
+    # Update global filter state
+    global filter_state
+    filter_state = data
+    
+    print("\n\n\n\n\n\n\n",filter_state)
+
+    # Update KPIs
+    overview_kpis = incidents_overview_kpi_data()
+    
+    dept_kpis = departments_overview_kpis()
+    type_kpis = incident_types_overview_kpis()
+    print("\n\n\n\n\n\n\n",overview_kpis,"\n\n\n\n\n\n\n",dept_kpis , "\n\n\n\n\n\n\n",type_kpis , "\n\n\n\n\n\n\n")
+    # Get updated figures
+    fig1, fig2 = get_incident_overview_graphs()
+    dept_df = fetch_incidents_by_department()
+    severity_df = fetch_department_vs_severity()
+    type_df = fetch_incidents_by_type()
+    type_severity_df = fetch_incident_type_vs_severity()
+
+    result = jsonify({
+        "overview_kpis": overview_kpis,
+        "incident_chart": json_item(fig1, "incident_chart"),
+        "injury_chart": json_item(fig2, "injury_chart"),
+        "donut_chart": json_item(plot_incidents_donut_chart(dept_df), "donut_chart"),
+        "bar_chart": json_item(plot_department_vs_severity_bar(severity_df), "bar_chart"),
+        "type_donut_chart": json_item(plot_incident_type_donut_chart(type_df), "type_donut_chart"),
+        "type_bar_chart": json_item(plot_incident_type_vs_severity_bar(type_severity_df), "type_bar_chart"),
+        "dept_kpis": dept_kpis,
+        "type_kpis": type_kpis,
+        "applied_filters": {
+            k: [("Yes" if v == '1' else "No") if k == "injured" else v for v in vals]
+            for k, vals in filter_state.items() if vals
+        }
+    })
+
+    print(result.get_data())
+
+    # Convert Bokeh figs to JSON
+    return result
+
+
+@app.route('/generate_report', methods=['POST'])
+def generate_report():
+    include_insights = 'include_insights' in request.form
+    user = session.get("user", "Unknown User")
+
+    # Placeholder: later you will replace this with actual AI-generated text
+    insights_text = "These are your AI-generated insights: [Placeholder content]"
+
+    # Create a PDF
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
+    pdf.cell(200, 10, txt=f"Incident Report - {user}", ln=True, align='C')
+
+    pdf.ln(10)
+    pdf.cell(200, 10, txt="Report Data Placeholder...", ln=True)
+
+    if include_insights:
+        pdf.ln(10)
+        pdf.multi_cell(0, 10, txt=insights_text)
+
+    # Return as downloadable file
+    file_stream = io.BytesIO()
+    pdf.output(file_stream)
+    file_stream.seek(0)
+
+    return send_file(file_stream, download_name="incident_report.pdf", as_attachment=True)
 
 
 # ----------- Admin Routes -----------
 
 @app.route("/admin_dashboard", methods=["GET", "POST"])
+@login_required
+@admin_required
 def admin_dashboard():
-    if 'user_name' not in session or session.get("role") != "admin":
-        return redirect(url_for("login"))
 
     if request.method == "POST":
         if request.form.get("clear_filters") == "1":
@@ -213,6 +366,8 @@ def admin_dashboard():
     )
 
 @app.route("/admin_data", methods=["GET", "POST"])
+@login_required
+@admin_required
 def admin_data():
     if request.method == "POST":
         if "inc_date" in request.form:
@@ -420,6 +575,8 @@ def delete_incident(incident_id):
 # ----------- Admin Management -----------
 
 @app.route("/admin_management", methods=["GET", "POST"])
+@login_required
+@admin_required
 def admin_management():
     message = None
     success = None
@@ -469,7 +626,6 @@ def update_admin(admin_id):
     username = data.get("username", "").strip()
     email = data.get("email", "").strip()
     password = data.get("password", "").strip()
-    current_user_id = session.get("user_id")
 
     if not username or not email:
         return jsonify({"success": False, "error": "Username and email are required."})
@@ -477,8 +633,7 @@ def update_admin(admin_id):
     conn = get_connection()
     cursor = conn.cursor()
     try:
-        if int(current_user_id) == int(admin_id) and password:
-            # update with password
+        if password:
             salt = generate_salt()
             hashed_password = hash_password(password, salt)
             cursor.execute("""
@@ -487,7 +642,6 @@ def update_admin(admin_id):
                 WHERE user_id = %s
             """, (username, email, hashed_password, admin_id))
         else:
-            # update without password
             cursor.execute("""
                 UPDATE users
                 SET user_name = %s, email = %s
@@ -506,9 +660,16 @@ def update_admin(admin_id):
 
 # ----------- Logout -----------
 
+@app.before_request
+def enforce_session_integrity():
+    if 'user_id' in session:
+        if not session.get('token'):
+            return redirect(url_for('logout'))
+
 @app.route("/logout")
 def logout():
     session.clear()
+    session.modified = True
     return redirect(url_for("login"))
 
 
