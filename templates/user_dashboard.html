@@ -11,6 +11,9 @@
       rel="stylesheet"
     />
     <script src="https://cdn.bokeh.org/bokeh/release/bokeh-3.7.3.min.js"></script>
+    <script src="https://cdn.bokeh.org/bokeh/release/bokeh-widgets-3.7.3.min.js"></script>
+    <script src="https://cdn.bokeh.org/bokeh/release/bokeh-tables-3.7.3.min.js"></script>
+    
   </head>
   <body>
     <!-- Top Navigation Bar -->
@@ -70,7 +73,7 @@
         <!-- Applied Filters Box -->
         <div class="applied-filters-box">
           <h3>Applied Filters</h3>
-          <div class="applied-filters-content">
+          <div class="applied-filters-content" id="applied-filters">
             {% for key, values in applied_filters.items() %} {% if values %}
             <div class="filter-tag">
               <strong>{{ key.replace('_', ' ').title() }}:</strong>
@@ -141,21 +144,20 @@
           <div class="kpi-cards">
             <div class="kpi-card">
               <div class="kpi-title">Total Incidents</div>
-              <div class="kpi-value">{{ overview_kpis.total }}</div>
+              <div class="kpi-value" id="total-incidents">{{ overview_kpis.total }}</div>
             </div>
             <div class="kpi-card">
               <div class="kpi-title">Total Injuries</div>
-              <div class="kpi-value">{{ overview_kpis.injuries }}</div>
+              <div class="kpi-value" id="total-injuries">{{ overview_kpis.injuries }}</div>
             </div>
             <div class="kpi-card">
               <div class="kpi-title">Total Days Lost</div>
-              <div class="kpi-value">{{ overview_kpis.days_lost }}</div>
+              <div class="kpi-value" id="total-days-lost">{{ overview_kpis.days_lost }}</div>
             </div>
           </div>
-          {{ incident_script|safe }}
           <div class="charts-grid">
-            <div class="chart-box">{{ incident_div|safe }}</div>
-            <div class="chart-box">{{ injury_div|safe }}</div>
+            <div class="chart-box" id="incident-chart"></div>
+            <div class="chart-box" id="injury-chart"></div>
           </div>
         </div>
 
@@ -165,7 +167,7 @@
           </div>
 
           <div style="display: flex; flex-wrap: wrap; align-items: flex-start">
-            <div class="chart-box">{{ donut_div | safe }}</div>
+            <div class="chart-box" id="dept-donut"></div>
             <div style="width: 40%">
               <div
                 class="kpi-card"
@@ -192,6 +194,7 @@
                     justify-content: space-evenly;
                     height: 100%;
                   "
+                  id="dept-distribution"
                 >
                   {% for dept, count in dept_kpis.by_department.items() %}
                   <div
@@ -217,22 +220,20 @@
           <div class="kpi-cards" style="margin-top: 20px">
             <div class="kpi-card">
               <div class="kpi-title">Most Incidents Department</div>
-              <div class="kpi-value">{{ dept_kpis.most_incidents_dept }}</div>
+              <div class="kpi-value" id="dept-most">{{ dept_kpis.most_incidents_dept }}</div>
             </div>
             <div class="kpi-card">
               <div class="kpi-title">Most Injuries Department</div>
-              <div class="kpi-value">{{ dept_kpis.most_injuries_dept }}</div>
+              <div class="kpi-value" id="dept-injuries">{{ dept_kpis.most_injuries_dept }}</div>
             </div>
           </div>
 
-          {{ dept_script | safe }}
           <div
             class="charts-grid"
             style="display: flex; justify-content: center"
           >
-            <div class="chart-box" style="width: 900px">
-              {{ bar_div | safe }}
-            </div>
+          <div class="chart-box" id="dept-bar"></div>
+            
           </div>
         </div>
 
@@ -242,7 +243,7 @@
           </div>
 
           <div style="display: flex; flex-wrap: wrap; align-items: flex-start">
-            <div class="chart-box">{{ type_donut_div | safe }}</div>
+            <div class="chart-box" id="type-donut"></div>
 
             <div style="width: 40%">
               <div
@@ -270,6 +271,7 @@
                     justify-content: space-evenly;
                     height: 100%;
                   "
+                  id = "incident_type_distribution"
                 >
                   {% for itype, count in type_kpis.by_type.items() %}
                   <div
@@ -295,28 +297,37 @@
           <div class="kpi-cards" style="margin-top: 20px">
             <div class="kpi-card">
               <div class="kpi-title">Most Common Incident Type</div>
-              <div class="kpi-value">{{ type_kpis.most_common_type }}</div>
+              <div class="kpi-value" id="type-most">{{ type_kpis.most_common_type }}</div>
             </div>
             <div class="kpi-card">
               <div class="kpi-title">Most Severe Incident Type</div>
-              <div class="kpi-value">{{ type_kpis.most_severe_type }}</div>
+              <div class="kpi-value" id="type-severe">{{ type_kpis.most_severe_type }}</div>
             </div>
           </div>
 
-          {{ type_script | safe }}
           <div
             class="charts-grid"
             style="display: flex; justify-content: center"
           >
-            <div class="chart-box" style="width: 900px">
-              {{ type_bar_div | safe }}
-            </div>
+            <div class="chart-box" id="type-bar"></div>
           </div>
         </div>
       </div>
     </div>
+    
 
     <script>
+      Bokeh.embed.embed_item({{ incident_fig1_json|safe }});
+      Bokeh.embed.embed_item({{ incident_fig2_json|safe }});
+      Bokeh.embed.embed_item({{ dept_donut_json|safe }});
+      Bokeh.embed.embed_item({{ dept_bar_json|safe }});
+      Bokeh.embed.embed_item({{ type_donut_json|safe }});
+      Bokeh.embed.embed_item({{ type_bar_json|safe }});
+    </script>
+
+    <script>
+      Bokeh.set_log_level("debug");
+
       function openReportModal() {
         document.getElementById("report-modal").style.display = "flex";
       }
@@ -337,12 +348,10 @@
 
         fetch("/update_dashboard", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(filters),
         })
-          .then((response) => response.json())
+          .then((res) => res.json())
           .then((data) => updateDashboard(data));
       }
 
@@ -353,74 +362,102 @@
 
         fetch("/update_dashboard", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({}), // send empty filters
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
         })
-          .then((response) => response.json())
+          .then((res) => res.json())
           .then((data) => updateDashboard(data));
       }
 
       function updateDashboard(data) {
-        // Update KPI values
-        const kpiValues = document.querySelectorAll(".kpi-value");
-        kpiValues[0].innerText = data.overview_kpis.total;
-        kpiValues[1].innerText = data.overview_kpis.injuries;
-        kpiValues[2].innerText = data.overview_kpis.days_lost;
 
-        // Update Applied Filters
-        const appliedDiv = document.querySelector(".applied-filters-content");
-        appliedDiv.innerHTML = "";
-        for (const [key, values] of Object.entries(data.applied_filters)) {
-          if (values.length > 0) {
-            appliedDiv.innerHTML += `
-                <div class="filter-tag">
-                  <strong>${key.replaceAll("_", " ").toUpperCase()}:</strong>
-                  ${values.join(", ")}
-                </div>`;
-          }
-        }
+        updateAppliedFilters(data.applied_filters);
+        
+        updateKPI("total-incidents", data.overview_kpis.total_incidents);
+        updateKPI("total-injuries", data.overview_kpis.total_injuries);
+        updateKPI("total-days-lost", data.overview_kpis.total_days_lost);
 
-        // Clear & Embed Bokeh Plots
-        const chartContainers = document.querySelectorAll(".chart-box");
+        updateKPI("dept-most", data.dept_kpis.most_incidents_department);
+        updateKPI("dept-injuries", data.dept_kpis.most_injuries_department);
 
-        if (chartContainers.length >= 6) {
-          chartContainers[0].innerHTML = "";
-          Bokeh.embed.embed_item(data.incident_script, chartContainers[0]);
+        updateKPI("type-most", data.type_kpis.most_common_type);
+        updateKPI("type-severe", data.type_kpis.most_severe_type);
 
-          chartContainers[1].innerHTML = "";
-          Bokeh.embed.embed_item(data.injury_div, chartContainers[1]);
+        updateDepartmentDistribution(data.dept_kpis.total_by_department);
+        updateIncidentTypeDistribution(data.type_kpis.total_by_type);
 
-          chartContainers[2].innerHTML = "";
-          Bokeh.embed.embed_item(data.donut_div, chartContainers[2]);
+        clearChart("incident-chart");
+        clearChart("injury-chart");
+        clearChart("dept-donut");
+        clearChart("dept-bar");
+        clearChart("type-donut");
+        clearChart("type-bar");
+        setTimeout(() => {
+          Bokeh.embed.embed_item(data.incident_fig1, "incident-chart");
+          Bokeh.embed.embed_item(data.incident_fig2, "injury-chart");
+          Bokeh.embed.embed_item(data.dept_donut, "dept-donut");
+          Bokeh.embed.embed_item(data.dept_bar, "dept-bar");
+          Bokeh.embed.embed_item(data.type_donut, "type-donut");
+          Bokeh.embed.embed_item(data.type_bar, "type-bar");
+        }, 1000);
 
-          chartContainers[3].innerHTML = "";
-          Bokeh.embed.embed_item(data.bar_div, chartContainers[3]);
+        // requestAnimationFrame(() => {
+        //   requestAnimationFrame(() => {
+        //     Bokeh.embed.embed_item(data.incident_fig1, "incident-chart");
+        //     Bokeh.embed.embed_item(data.incident_fig2, "injury-chart");
+        //     Bokeh.embed.embed_item(data.dept_donut, "dept-donut");
+        //     Bokeh.embed.embed_item(data.dept_bar, "dept-bar");
+        //     Bokeh.embed.embed_item(data.type_donut, "type-donut");
+        //     Bokeh.embed.embed_item(data.type_bar, "type-bar");
+        //   });
+        // });
 
-          chartContainers[4].innerHTML = "";
-          Bokeh.embed.embed_item(data.type_donut_div, chartContainers[4]);
+        
+      }
 
-          chartContainers[5].innerHTML = "";
-          Bokeh.embed.embed_item(data.type_bar_div, chartContainers[5]);
-        }
+      function updateKPI(id, value) {
+        const el = document.getElementById(id);
+        if (el) el.textContent = value;
+      }
 
-        // Update Department KPIs
-        const deptKPI = document.querySelectorAll(".kpi-card .kpi-value")[3];
-        const deptInjury = document.querySelectorAll(".kpi-card .kpi-value")[4];
-        if (deptKPI && deptInjury) {
-          deptKPI.innerText = data.dept_kpis.most_incidents_dept;
-          deptInjury.innerText = data.dept_kpis.most_injuries_dept;
-        }
-
-        // Update Type KPIs
-        const typeCommon = document.querySelectorAll(".kpi-card .kpi-value")[5];
-        const typeSevere = document.querySelectorAll(".kpi-card .kpi-value")[6];
-        if (typeCommon && typeSevere) {
-          typeCommon.innerText = data.type_kpis.most_common_type;
-          typeSevere.innerText = data.type_kpis.most_severe_type;
+      function updateDepartmentDistribution(deptData) {
+        const container = document.getElementById("dept-distribution");
+        container.innerHTML = "";
+        for (const [dept, count] of Object.entries(deptData)) {
+          container.innerHTML += `<p><strong>${dept}</strong>: ${count}</p>`;
         }
       }
+
+      function updateIncidentTypeDistribution(typeData) {
+        const container = document.getElementById("incident_type_distribution");
+        container.innerHTML = "";
+        for (const [type, count] of Object.entries(typeData)) {
+          container.innerHTML += `<p><strong>${type}</strong>: ${count}</p>`;
+        }
+      }
+
+      function updateAppliedFilters(filters) {
+        const container = document.getElementById("applied-filters");
+        container.innerHTML = "";
+        for (const [key, values] of Object.entries(filters)) {
+          if (!values.length) continue;
+          const label = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+          const valueStr = values.map(v => key === "injured" ? (v === '1' ? "Yes" : "No") : v).join(", ");
+          container.innerHTML += `<div class="filter-tag"><strong>${label}:</strong> ${valueStr}</div>`;
+        }
+      }
+
+      function clearChart(chartId) {
+        const container = document.getElementById(chartId);
+        if (container) {
+            // Full wipe and replacement with a new div
+            const newContainer = container.cloneNode(false); // same ID, no children
+            container.parentNode.replaceChild(newContainer, container);
+        }
+    }
+
+
+
     </script>
   </body>
 </html>

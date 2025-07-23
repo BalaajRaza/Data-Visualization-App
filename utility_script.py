@@ -1,7 +1,7 @@
 from bokeh.plotting import figure
 from bokeh.embed import components
 from bokeh.models import ColumnDataSource, HoverTool , Legend , FactorRange , LegendItem , LabelSet
-from bokeh.palettes import Category10
+from bokeh.palettes import Category10, Category20
 from bokeh.transform import factor_cmap
 
 import numpy as np
@@ -37,7 +37,7 @@ def get_filter_options():
     incident_types = fetch_values("SELECT DISTINCT incident_type FROM incidents")
     severities = fetch_values("SELECT DISTINCT severity FROM incidents")
     injured_vals = fetch_values("SELECT DISTINCT injured FROM incidents")
-    days_lost_vals = fetch_values("SELECT DISTINCT days_lost FROM incidents")
+    days_lost_vals = fetch_values("SELECT DISTINCT days_lost FROM incidents where days_lost <> (-1)")
 
     months = sorted(months, key=lambda x: int(x))
     cursor.close()
@@ -127,6 +127,7 @@ def fetch_incidents_over_time_data():
 def fetch_injury_split_over_time_data():
     conn = get_connection()
     where_clause, params = build_filter_conditions()
+    print("\n\n\n\n\n FILTERS   ", filter_state, "\n\n\n\n\n")
     query = f"""
         SELECT DATE_FORMAT(inc_date, '%Y-%m') AS month_start,
                SUM(CASE WHEN injured = 1 THEN 1 ELSE 0 END) AS injured,
@@ -205,13 +206,12 @@ def plot_injury_comparison_over_time(df):
     return p
 
 
-def get_incident_overview_graphs():
+def get_incident_overview_figures():
     df1 = fetch_incidents_over_time_data()
     df2 = fetch_injury_split_over_time_data()
     fig1 = plot_incidents_over_time(df1)
     fig2 = plot_injury_comparison_over_time(df2)
-    script, divs = components((fig1, fig2))
-    return script, divs
+    return fig1, fig2
 
 
 # ------ DEPARTMENTS OVER DATA ------ #
@@ -272,8 +272,6 @@ def departments_overview_kpis():
         "most_injuries_dept": most_injuries_dept          
     }
 
-    print(result)
-
     return result
 
 def fetch_incidents_by_department():
@@ -317,7 +315,13 @@ def plot_incidents_donut_chart(df):
         palette = (Category10[10] * ((len(df) // 10) + 1))[:len(df)]
 
     df['color'] = palette
+    df['total'] = pd.to_numeric(df['total'], errors='coerce').fillna(0)
+    if df['total'].sum() == 0:
+        return blank_chart("No Data")  # gracefully return a blank chart
+
     df['percentage'] = (df['total'] / df['total'].sum() * 100).round(1).astype(str) + '%'
+
+
     df['label_angle'] = df['angle'].cumsum() - df['angle'] / 2
 
     source = ColumnDataSource(df)
@@ -385,9 +389,19 @@ def plot_department_vs_severity_bar(df):
 
     p.toolbar.logo = None
 
+    n = len(severities)
+    if n < 3:
+        palette = ["#1f77b4", "#ff7f0e"][:n]  # fallback 1-2 colors
+    elif n <= 10:
+        palette = Category10[n]
+    elif n <= 20:
+        palette = Category20[n]
+    else:
+        palette = Category20[20]
+
     p.vbar(x='x', top='count', width=0.8, source=source,
         fill_color=factor_cmap('x',
-                                palette=Category10[len(severities)],
+                                palette=palette,
                                 factors=severities, start=1, end=2))
 
     p.xaxis.major_label_orientation = pi/4
@@ -401,6 +415,13 @@ def plot_department_vs_severity_bar(df):
     p.add_tools(hover)
 
     return p
+
+def get_department_overview_figures():
+    dept_df = fetch_incidents_by_department()
+    dept_vs_severity_df = fetch_department_vs_severity()
+    donut_chart = plot_incidents_donut_chart(dept_df)
+    bar_chart = plot_department_vs_severity_bar(dept_vs_severity_df)
+    return donut_chart, bar_chart
 
 
 # ------ INCIDENT TYPES OVERVIEW ------ #
@@ -458,9 +479,6 @@ def incident_types_overview_kpis():
         "most_severe_type": most_severe_type
     }
 
-    print(result)
-
-
     return result
 
 
@@ -488,7 +506,14 @@ def plot_incident_type_donut_chart(df):
         palette = (Category10[10] * ((len(df) // 10) + 1))[:len(df)]
 
     df['color'] = palette
+    
+    df['total'] = pd.to_numeric(df['total'], errors='coerce').fillna(0)
+    if df['total'].sum() == 0:
+        return blank_chart("No Data")  # gracefully return a blank chart
+
     df['percentage'] = (df['total'] / df['total'].sum() * 100).round(1).astype(str) + '%'
+
+
     df['label_angle'] = df['angle'].cumsum() - df['angle'] / 2
 
     source = ColumnDataSource(df)
@@ -570,9 +595,19 @@ def plot_incident_type_vs_severity_bar(df):
 
     p.toolbar.logo = None
 
+    n = len(severities)
+    if n < 3:
+        palette = ["#1f77b4", "#ff7f0e"][:n]  # fallback 1-2 colors
+    elif n <= 10:
+        palette = Category10[n]
+    elif n <= 20:
+        palette = Category20[n]
+    else:
+        palette = Category20[20] 
+
     p.vbar(x='x', top='count', width=0.8, source=source,
         fill_color=factor_cmap('x',
-                                palette=Category10[len(severities)],
+                                palette=palette,
                                 factors=severities, start=1, end=2))
 
     p.xaxis.major_label_orientation = pi/4
@@ -587,6 +622,18 @@ def plot_incident_type_vs_severity_bar(df):
 
     return p
 
+def get_incident_type_overview_figures():
+    type_df = fetch_incidents_by_type()
+    type_vs_severity_df = fetch_incident_type_vs_severity()
+    type_bar_chart = plot_incident_type_donut_chart(type_df)
+    type_vs_severity_bar_chart = plot_incident_type_vs_severity_bar(type_vs_severity_df)
+    return type_bar_chart, type_vs_severity_bar_chart
+
+
+def blank_chart(title="No Data"):
+    p = figure(height=300, width=400, title=title)
+    p.text(x=0.5, y=0.5, text=["No Data to Display"], text_align="center", text_baseline="middle", text_font_size="14pt")
+    return p
 
 
 #     ADMIN DATA SECTION UTILITY FUNCTIONS     #
