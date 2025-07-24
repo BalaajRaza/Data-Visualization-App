@@ -315,38 +315,38 @@ def generate_report():
 @login_required
 @admin_required
 def admin_dashboard():
-
     if request.method == "POST":
-        if request.form.get("clear_filters") == "1":
-            for key in filter_state.keys():
-                filter_state[key] = []
-        else:
-            for key in filter_state.keys():
-                selected = request.form.getlist(key)
-                filter_state[key] = selected if selected else []
+            if request.form.get("clear_filters") == "1":
+                for key in filter_state.keys():
+                    filter_state[key] = []
+            else:
+                for key in filter_state.keys():
+                    selected = request.form.getlist(key)
+                    filter_state[key] = selected if selected else []
 
     filter_options = get_filter_options()
+
+        # KPIs
     overview_kpis = incidents_overview_kpi_data()
-    incident_over_time = fetch_incidents_over_time_data()
-    injury_distribution = fetch_injury_split_over_time_data()
-    incident_overtime_graph = plot_incidents_over_time(incident_over_time)
-    injury_distribution_graph = plot_injury_comparison_over_time(injury_distribution)
-    overview_script, (incident_div, injury_div ) = components((incident_overtime_graph, injury_distribution_graph))
-
     dept_kpis = departments_overview_kpis()
-    dept_df = fetch_incidents_by_department()
-    severity_df = fetch_department_vs_severity()
-    donut_fig = plot_incidents_donut_chart(dept_df)
-    bar_fig = plot_department_vs_severity_bar(severity_df)
-    dept_script, (donut_div, bar_div) = components((donut_fig, bar_fig))
-
     type_kpis = incident_types_overview_kpis()
-    type_df = fetch_incidents_by_type()
-    type_severity_df = fetch_incident_type_vs_severity()
-    type_donut = plot_incident_type_donut_chart(type_df)
-    type_bar = plot_incident_type_vs_severity_bar(type_severity_df)
-    type_script, (type_donut_div, type_bar_div) = components((type_donut, type_bar))
 
+    # Overview Figures (Incidents vs Time, Injury Split)
+    fig1, fig2 = get_incident_overview_figures()
+    incident_fig1_json = json.dumps(json_item(fig1, "incident-chart"))
+    incident_fig2_json = json.dumps(json_item(fig2, "injury-chart"))
+
+    # Department Figures
+    dept_donut, dept_bar = get_department_overview_figures()
+    dept_donut_json = json.dumps(json_item(dept_donut, "dept-donut"))
+    dept_bar_json = json.dumps(json_item(dept_bar, "dept-bar"))
+
+    # Incident Type Figures
+    type_donut, type_bar = get_incident_type_overview_figures()
+    type_donut_json = json.dumps(json_item(type_donut, "type-donut"))
+    type_bar_json = json.dumps(json_item(type_bar, "type-bar"))
+
+    # Applied filters display
     applied = {
         k: [("Yes" if v == '1' else "No") if k == "injured" else v for v in vals]
         for k, vals in filter_state.items() if vals
@@ -358,21 +358,19 @@ def admin_dashboard():
         user=session['user_name'],
         applied_filters=applied,
         filter_state=filter_state,
-        
+
+        # KPIs
         overview_kpis=overview_kpis,
-        incident_script=overview_script,
-        incident_div=incident_div, 
-        injury_div=injury_div,
-
         dept_kpis=dept_kpis,
-        dept_script=dept_script,
-        donut_div=donut_div,
-        bar_div=bar_div,
-
         type_kpis=type_kpis,
-        type_script=type_script,
-        type_donut_div=type_donut_div,
-        type_bar_div=type_bar_div
+
+        # JSON for all Bokeh plots
+        incident_fig1_json=incident_fig1_json,
+        incident_fig2_json=incident_fig2_json,
+        dept_donut_json=dept_donut_json,
+        dept_bar_json=dept_bar_json,
+        type_donut_json=type_donut_json,
+        type_bar_json=type_bar_json
     )
 
 @app.route("/admin_data", methods=["GET", "POST"])

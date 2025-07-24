@@ -13,7 +13,6 @@
     <script src="https://cdn.bokeh.org/bokeh/release/bokeh-3.7.3.min.js"></script>
     <script src="https://cdn.bokeh.org/bokeh/release/bokeh-widgets-3.7.3.min.js"></script>
     <script src="https://cdn.bokeh.org/bokeh/release/bokeh-tables-3.7.3.min.js"></script>
-    
   </head>
   <body>
     <!-- Top Navigation Bar -->
@@ -144,15 +143,21 @@
           <div class="kpi-cards">
             <div class="kpi-card">
               <div class="kpi-title">Total Incidents</div>
-              <div class="kpi-value" id="total-incidents">{{ overview_kpis.total }}</div>
+              <div class="kpi-value" id="total-incidents">
+                {{ overview_kpis.total }}
+              </div>
             </div>
             <div class="kpi-card">
               <div class="kpi-title">Total Injuries</div>
-              <div class="kpi-value" id="total-injuries">{{ overview_kpis.injuries }}</div>
+              <div class="kpi-value" id="total-injuries">
+                {{ overview_kpis.injuries }}
+              </div>
             </div>
             <div class="kpi-card">
               <div class="kpi-title">Total Days Lost</div>
-              <div class="kpi-value" id="total-days-lost">{{ overview_kpis.days_lost }}</div>
+              <div class="kpi-value" id="total-days-lost">
+                {{ overview_kpis.days_lost }}
+              </div>
             </div>
           </div>
           <div class="charts-grid">
@@ -220,11 +225,15 @@
           <div class="kpi-cards" style="margin-top: 20px">
             <div class="kpi-card">
               <div class="kpi-title">Most Incidents Department</div>
-              <div class="kpi-value" id="dept-most">{{ dept_kpis.most_incidents_dept }}</div>
+              <div class="kpi-value" id="dept-most">
+                {{ dept_kpis.most_incidents_dept }}
+              </div>
             </div>
             <div class="kpi-card">
               <div class="kpi-title">Most Injuries Department</div>
-              <div class="kpi-value" id="dept-injuries">{{ dept_kpis.most_injuries_dept }}</div>
+              <div class="kpi-value" id="dept-injuries">
+                {{ dept_kpis.most_injuries_dept }}
+              </div>
             </div>
           </div>
 
@@ -232,8 +241,7 @@
             class="charts-grid"
             style="display: flex; justify-content: center"
           >
-          <div class="chart-box" id="dept-bar"></div>
-            
+            <div class="chart-box" id="dept-bar"></div>
           </div>
         </div>
 
@@ -271,7 +279,7 @@
                     justify-content: space-evenly;
                     height: 100%;
                   "
-                  id = "incident_type_distribution"
+                  id="incident_type_distribution"
                 >
                   {% for itype, count in type_kpis.by_type.items() %}
                   <div
@@ -297,11 +305,15 @@
           <div class="kpi-cards" style="margin-top: 20px">
             <div class="kpi-card">
               <div class="kpi-title">Most Common Incident Type</div>
-              <div class="kpi-value" id="type-most">{{ type_kpis.most_common_type }}</div>
+              <div class="kpi-value" id="type-most">
+                {{ type_kpis.most_common_type }}
+              </div>
             </div>
             <div class="kpi-card">
               <div class="kpi-title">Most Severe Incident Type</div>
-              <div class="kpi-value" id="type-severe">{{ type_kpis.most_severe_type }}</div>
+              <div class="kpi-value" id="type-severe">
+                {{ type_kpis.most_severe_type }}
+              </div>
             </div>
           </div>
 
@@ -314,7 +326,6 @@
         </div>
       </div>
     </div>
-    
 
     <script>
       Bokeh.embed.embed_item({{ incident_fig1_json|safe }});
@@ -341,19 +352,77 @@
         const formData = new FormData(form);
         const filters = {};
 
+        // Extract filters from form
         for (const [key, value] of formData.entries()) {
-          if (!filters[key]) filters[key] = [];
-          filters[key].push(value);
+            if (!filters[key]) filters[key] = [];
+            filters[key].push(value);
+          }
+
+          // Send filters via AJAX
+          fetch("/update_dashboard", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(filters),
+          })
+            .then((res) => res.json())
+            .then((data) => {
+              // Update filters and KPIs
+              updateAppliedFilters(data.applied_filters);
+              updateKPI("total-incidents", data.overview_kpis.total_incidents);
+              updateKPI("total-injuries", data.overview_kpis.total_injuries);
+              updateKPI("total-days-lost", data.overview_kpis.total_days_lost);
+              updateKPI("dept-most", data.dept_kpis.most_incidents_department);
+              updateKPI("dept-injuries", data.dept_kpis.most_injuries_department);
+              updateKPI("type-most", data.type_kpis.most_common_type);
+              updateKPI("type-severe", data.type_kpis.most_severe_type);
+              updateDepartmentDistribution(data.dept_kpis.total_by_department);
+              updateIncidentTypeDistribution(data.type_kpis.total_by_type);
+
+              // Clear existing Bokeh state
+              for (const key in Bokeh.index) {
+                if (Bokeh.index.hasOwnProperty(key)) {
+                  delete Bokeh.index[key];
+                }
+              }
+              Bokeh.index = {};
+
+              // Reset plot containers (hide → reflow → show)
+              const plotDivs = [
+                "incident-chart",
+                "injury-chart",
+                "dept-donut",
+                "dept-bar",
+                "type-donut",
+                "type-bar",
+              ];
+
+              plotDivs.forEach((id) => {
+                const el = document.getElementById(id);
+                el.innerHTML = "";            // Clear previous plot
+                el.style.display = "none";    // Hide
+                void el.offsetWidth;          // Force reflow
+                el.style.display = "block";   // Show
+              });
+
+              // Log debug (optional)
+              if (data.incident_fig1) {
+                console.log("✅ New incident_fig1 received, re-embedding...");
+              }
+
+              // Re-embed all plots using requestAnimationFrame x2
+              requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                  Bokeh.embed.embed_item(data.incident_fig1, "incident-chart");
+                  Bokeh.embed.embed_item(data.incident_fig2, "injury-chart");
+                  Bokeh.embed.embed_item(data.dept_donut, "dept-donut");
+                  Bokeh.embed.embed_item(data.dept_bar, "dept-bar");
+                  Bokeh.embed.embed_item(data.type_donut, "type-donut");
+                  Bokeh.embed.embed_item(data.type_bar, "type-bar");
+                });
+              });
+            });
         }
 
-        fetch("/update_dashboard", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(filters),
-        })
-          .then((res) => res.json())
-          .then((data) => updateDashboard(data));
-      }
 
       function clearFilters() {
         document
@@ -366,53 +435,7 @@
           body: JSON.stringify({}),
         })
           .then((res) => res.json())
-          .then((data) => updateDashboard(data));
-      }
-
-      function updateDashboard(data) {
-
-        updateAppliedFilters(data.applied_filters);
-        
-        updateKPI("total-incidents", data.overview_kpis.total_incidents);
-        updateKPI("total-injuries", data.overview_kpis.total_injuries);
-        updateKPI("total-days-lost", data.overview_kpis.total_days_lost);
-
-        updateKPI("dept-most", data.dept_kpis.most_incidents_department);
-        updateKPI("dept-injuries", data.dept_kpis.most_injuries_department);
-
-        updateKPI("type-most", data.type_kpis.most_common_type);
-        updateKPI("type-severe", data.type_kpis.most_severe_type);
-
-        updateDepartmentDistribution(data.dept_kpis.total_by_department);
-        updateIncidentTypeDistribution(data.type_kpis.total_by_type);
-
-        clearChart("incident-chart");
-        clearChart("injury-chart");
-        clearChart("dept-donut");
-        clearChart("dept-bar");
-        clearChart("type-donut");
-        clearChart("type-bar");
-        setTimeout(() => {
-          Bokeh.embed.embed_item(data.incident_fig1, "incident-chart");
-          Bokeh.embed.embed_item(data.incident_fig2, "injury-chart");
-          Bokeh.embed.embed_item(data.dept_donut, "dept-donut");
-          Bokeh.embed.embed_item(data.dept_bar, "dept-bar");
-          Bokeh.embed.embed_item(data.type_donut, "type-donut");
-          Bokeh.embed.embed_item(data.type_bar, "type-bar");
-        }, 1000);
-
-        // requestAnimationFrame(() => {
-        //   requestAnimationFrame(() => {
-        //     Bokeh.embed.embed_item(data.incident_fig1, "incident-chart");
-        //     Bokeh.embed.embed_item(data.incident_fig2, "injury-chart");
-        //     Bokeh.embed.embed_item(data.dept_donut, "dept-donut");
-        //     Bokeh.embed.embed_item(data.dept_bar, "dept-bar");
-        //     Bokeh.embed.embed_item(data.type_donut, "type-donut");
-        //     Bokeh.embed.embed_item(data.type_bar, "type-bar");
-        //   });
-        // });
-
-        
+          .then((data) => applyFilters());
       }
 
       function updateKPI(id, value) {
@@ -441,8 +464,12 @@
         container.innerHTML = "";
         for (const [key, values] of Object.entries(filters)) {
           if (!values.length) continue;
-          const label = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-          const valueStr = values.map(v => key === "injured" ? (v === '1' ? "Yes" : "No") : v).join(", ");
+          const label = key
+            .replace(/_/g, " ")
+            .replace(/\b\w/g, (l) => l.toUpperCase());
+          const valueStr = values
+            .map((v) => (key === "injured" ? (v === "1" ? "Yes" : "No") : v))
+            .join(", ");
           container.innerHTML += `<div class="filter-tag"><strong>${label}:</strong> ${valueStr}</div>`;
         }
       }
@@ -450,14 +477,11 @@
       function clearChart(chartId) {
         const container = document.getElementById(chartId);
         if (container) {
-            // Full wipe and replacement with a new div
-            const newContainer = container.cloneNode(false); // same ID, no children
-            container.parentNode.replaceChild(newContainer, container);
+          // Full wipe and replacement with a new div
+          const newContainer = container.cloneNode(false); // same ID, no children
+          container.parentNode.replaceChild(newContainer, container);
         }
-    }
-
-
-
+      }
     </script>
   </body>
 </html>
