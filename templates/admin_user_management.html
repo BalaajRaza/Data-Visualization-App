@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='admin_management.css') }}" />
+  <title>User Management</title>
+</head>
+<body>
+  <div class="navbar">
+    <div class="nav-left">EHS - Admin Portal</div>
+    <div class="nav-links">
+      <a href="{{ url_for('admin_dashboard') }}">Dashboard</a>
+      <a href="{{ url_for('user_management') }}">Users</a>
+      <a href="{{ url_for('admin_management') }}">Admins</a>
+      <a href="{{ url_for('admin_data') }}">Data</a>
+      <span class="welcome">Welcome, {{ user }}</span>
+      <a href="{{ url_for('logout') }}" class="logout-btn">Logout</a>
+    </div>
+  </div>
+
+  <div class="main-container">
+    <div class="left-panel">
+      <h2>Add New User</h2>
+
+      {% if message %}
+      <div class="message {{ 'success' if success else 'error' }}">
+        {{ message }}
+      </div>
+      {% endif %}
+
+      <form class="admin-form" action="{{ url_for('user_management') }}" method="POST">
+        <label for="username">Username:</label>
+        <input type="text" id="username" name="username" required minlength="6" placeholder="User Name" />
+
+        <label for="email">Email:</label>
+        <input type="email" id="email" name="email" required placeholder="e.g., user@example.com" />
+
+        <label for="password">Password:</label>
+        <input type="password" id="password" name="password" required minlength="8" placeholder="Min 8 characters, aplha-numeric, lower and upper case" />
+
+        <button type="submit" class="submit-btn">Create User</button>
+      </form>
+    </div>
+
+    <div class="right-panel">
+      <h2>All Users</h2>
+
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Username</th>
+            <th>Email</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for user in users %}
+          <tr>
+            <td>{{ user.user_id }}</td>
+            <td>{{ user.user_name }}</td>
+            <td>{{ user.email }}</td>
+            <td>
+              <button class="delete-btn" onclick="deleteUser('{{ user.user_id }}')">Delete</button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Delete Confirmation Modal -->
+  <div id="delete-modal" class="modal hidden">
+    <div class="modal-content">
+      <span class="close-btn" onclick="closeDeleteModal()">&times;</span>
+      <h3>Confirm Delete</h3>
+      <p>Are you sure you want to delete this user?</p>
+      <div style="margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px;">
+        <button class="confirm-delete-btn" onclick="confirmDelete()">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let userToDelete = null;
+
+    function deleteUser(id) {
+      userToDelete = id;
+      document.getElementById("delete-modal").classList.remove("hidden");
+    }
+
+    function closeDeleteModal() {
+      document.getElementById("delete-modal").classList.add("hidden");
+    }
+
+    function confirmDelete() {
+      if (!userToDelete) return;
+
+      fetch(`/delete_user/${userToDelete}`, {
+        method: "POST",
+      })
+        .then(res => res.json())
+        .then(response => {
+          if (response.success) {
+            location.reload();
+          } else {
+            alert("Delete failed: " + response.error);
+          }
+        });
+
+      closeDeleteModal();
+    }
+  </script>
+</body>
+</html>

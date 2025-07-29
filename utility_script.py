@@ -15,6 +15,7 @@ import tempfile
 from selenium import webdriver
 from PIL import Image
 import os
+import re
 
 import numpy as np
 import pandas as pd
@@ -809,6 +810,41 @@ def insert_admin(username, email, password):
     finally:
         cursor.close()
         conn.close()
+
+def insert_user(username, email, password):
+    if len(username) < 6:
+        return False, "Username must be at least 6 characters."
+    if '@' not in email or '.' not in email:
+        return False, "Invalid email address."
+    if len(password) < 8 or not any(c.isupper() for c in password) \
+       or not any(c.islower() for c in password) or not any(c.isdigit() for c in password):
+        return False, "Password must be at least 8 characters long and contain upper, lower, and digit."
+
+    salt = generate_salt()
+    hashed_password = hash_password(password, salt)
+
+    conn = get_connection()
+    if not conn:
+        return False, "Database connection failed."
+
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute(
+            "INSERT INTO users (user_name, email, user_password, user_role) VALUES (%s, %s, %s, %s)",
+            (username, email, hashed_password, "user")
+        )
+        conn.commit()
+        return True, "User inserted successfully."
+    except Exception as e:
+        conn.rollback()
+        if "Duplicate entry" in str(e):
+            return False, "Email already exists."
+        return False, f"Database error: {e}"
+    finally:
+        cursor.close()
+        conn.close()
+
 
 def generate_pdf_report(kpi_sections, filters, generator, graph_path, ai_insights, stream):
     c = canvas.Canvas(stream, pagesize=A4)

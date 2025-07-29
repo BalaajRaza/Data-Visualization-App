@@ -678,6 +678,56 @@ def update_admin(admin_id):
         cursor.close()
         conn.close()
 
+# --------------- User Management -----------
+
+@app.route("/user_management", methods=["GET", "POST"])
+@login_required
+@admin_required
+def user_management():
+    message = None
+    success = None
+
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        email = request.form.get("email", "").strip()
+        password = request.form.get("password", "").strip()
+
+        print(username)
+        print(email)
+        print(password)
+
+        success, message = insert_user(username, email, password)  # You’ll define this function
+
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT user_id, user_name, email FROM users WHERE user_role = 'user'")
+    users = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    return render_template(
+        "admin_user_management.html",
+        user=session["user_name"],
+        users=users,
+        success=success,
+        message=message
+    )
+
+@app.route("/delete_user/<int:user_id>", methods=["POST"])
+@login_required
+@admin_required
+def delete_user(user_id):
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM users WHERE user_id = %s AND user_role = 'user'", (user_id,))
+        conn.commit()
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+    finally:
+        cursor.close()
+        conn.close()
 
 
 # ----------- Logout -----------

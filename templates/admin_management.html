@@ -15,7 +15,7 @@
       <div class="nav-left">EHS - Admin Portal</div>
       <div class="nav-links">
         <a href="{{ url_for('admin_dashboard') }}">Dashboard</a>
-        <a href="#">Users</a>
+        <a href="{{ url_for('user_management') }}">Users</a>
         <a href="{{ url_for('admin_management') }}">Admins</a>
         <a href="{{ url_for('admin_data') }}">Data</a>
         <span class="welcome">Welcome, {{ user }}</span>
