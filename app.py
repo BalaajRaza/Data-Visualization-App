@@ -9,6 +9,7 @@ from fpdf import FPDF
 from bokeh.embed import json_item
 from bokeh.io import output_file
 from bokeh.plotting import show
+from bokeh.document import document
 import datetime
 import json
 
@@ -252,6 +253,9 @@ def update_dashboard():
     dept_donut, dept_bar = get_department_overview_figures()
     type_donut, type_bar = get_incident_type_overview_figures()
 
+    with open("incident_fig1_debug.json", "w") as f:
+        f.write(json.dumps(json_item(fig2, "incident-chart"), indent=2))
+
     return jsonify({
         "overview_kpis": {
             "total_incidents": overview_kpis["total"],
@@ -278,36 +282,46 @@ def update_dashboard():
         "applied_filters": filter_state
     })
 
-
-
 @app.route('/generate_report', methods=['POST'])
 def generate_report():
     include_insights = 'include_insights' in request.form
-    user = session.get("user", "Unknown User")
+    user = session["user_name"]
 
-    # Placeholder: later you will replace this with actual AI-generated text
-    insights_text = "These are your AI-generated insights: [Placeholder content]"
+    # Collect current dashboard data
+    # These should be current from your session state or cache
+    kpi_sections = {
+        "Incidents Overview": {
+            "Total Incidents": incidents_overview_kpi_data()["total"],
+            "Total Injuries": incidents_overview_kpi_data()["injuries"],
+            "Total Days Lost": incidents_overview_kpi_data()["days_lost"],
+        },
+        "Departments Overview": {
+            **departments_overview_kpis()["by_department"],  # e.g., {"Mining": 12, "Admin": 5}
+            "Most Incidents Department": departments_overview_kpis()["most_incidents_dept"],  # e.g., "Mining"
+            "Most Injuries Department": departments_overview_kpis()["most_injuries_dept"]  # e.g., "Admin"
+        },
+        "Incident Type Overview": {
+            **incident_types_overview_kpis()["by_type"],  # e.g., {"Fall": 6, "Fire": 3}
+            "Most Common Incident Type": incident_types_overview_kpis()["most_common_type"],  # e.g., "Fall"
+            "Most Severe Incident Type": incident_types_overview_kpis()["most_severe_type"]  # e.g., "Fall"
+        }
+    }
 
-    # Create a PDF
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", size=12)
-    pdf.cell(200, 10, txt=f"Incident Report - {user}", ln=True, align='C')
+    # Save current Bokeh graph image to file (if not already rendered)
+    graph_image_path = "static/images/dashboard_graphs.png"
+    combine_dashboard_graphs(graph_image_path)  # This renders composite PNG of all graphs
 
-    pdf.ln(10)
-    pdf.cell(200, 10, txt="Report Data Placeholder...", ln=True)
-
+    # AI Insights
+    insights_text = ""
     if include_insights:
-        pdf.ln(10)
-        pdf.multi_cell(0, 10, txt=insights_text)
+        insights_text = "This is dummy text for AI Insights "#get_ai_insights()  # From a session variable or storage
 
-    # Return as downloadable file
+    # Generate PDF to in-memory stream
     file_stream = io.BytesIO()
-    pdf.output(file_stream)
+    generate_pdf_report(kpi_sections,filter_state, user, graph_image_path, insights_text, file_stream)
     file_stream.seek(0)
 
     return send_file(file_stream, download_name="incident_report.pdf", as_attachment=True)
-
 
 # ----------- Admin Routes -----------
 

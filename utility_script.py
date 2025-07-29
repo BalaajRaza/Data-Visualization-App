@@ -3,6 +3,18 @@ from bokeh.embed import components
 from bokeh.models import ColumnDataSource, HoverTool , Legend , FactorRange , LegendItem , LabelSet
 from bokeh.palettes import Category10, Category20
 from bokeh.transform import factor_cmap
+from bokeh.io.export import export_png
+from bokeh.layouts import gridplot
+from bokeh.plotting import output_file, save
+from bokeh.resources import INLINE
+from selenium.webdriver.chrome.service import Service as ChromeService
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.webdriver import WebDriver
+from bokeh.io.webdriver import create_chromium_webdriver
+import tempfile
+from selenium import webdriver
+from PIL import Image
+import os
 
 import numpy as np
 import pandas as pd
@@ -12,6 +24,14 @@ import pandas as pd
 from sql_connector import get_connection
 from datetime import datetime
 import secrets, hashlib, binascii
+
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.lib.utils import ImageReader, simpleSplit
+from reportlab.lib.units import cm
+from PIL import Image
+from datetime import datetime
 
 filter_state = {
     "year": [],
@@ -789,3 +809,152 @@ def insert_admin(username, email, password):
     finally:
         cursor.close()
         conn.close()
+
+def generate_pdf_report(kpi_sections, filters, generator, graph_path, ai_insights, stream):
+    c = canvas.Canvas(stream, pagesize=A4)
+    width, height = A4
+
+    # Header
+    c.setFillColor(colors.HexColor("#ABC4FF"))
+    c.rect(0, height - 60, width, 60, stroke=0, fill=1)
+    c.setFont("Helvetica-Bold", 20)
+    c.setFillColor(colors.black)
+    c.drawString(50, height - 40, "EHS Dashboard Report")
+
+    c.setFont("Helvetica", 12)
+    c.drawString(50, height - 80, f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    c.drawString(50, height - 95, f"Report by: {generator}")
+    y = height - 130
+
+    # Filters
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(50, y, "Applied Filters")
+    y -= 15
+    c.line(50, y, width - 50, y)
+    y -= 20
+
+    if all(val in [None, "", [], "None"] for val in filters.values()):
+        c.setFont("Helvetica-Oblique", 12)
+        c.drawString(60, y, "No filters applied.")
+        y -= 20
+    else:
+        c.setFont("Helvetica", 12)
+        for key, val in filters.items():
+            if val:
+                val_str = ', '.join(val) if isinstance(val, list) else str(val)
+                c.drawString(60, y, f"- {key.replace('_', ' ').capitalize()}: {val_str}")
+                y -= 15
+
+    for section_title, kpis in kpi_sections.items():
+        y -= 30
+        if y < 100:
+            c.showPage()
+            y = height - 80
+
+        # Section Header
+        c.setFont("Helvetica-Bold", 14)
+        c.drawString(50, y, section_title)
+        y -= 15
+        c.line(50, y, width - 50, y)
+        y -= 25
+
+        bg = True
+        for label, value in kpis.items():
+            if y < 100:
+                c.showPage()
+                y = height - 80
+            c.setFillColor(colors.whitesmoke if bg else colors.white)
+            c.rect(45, y - 3, width - 90, 18, fill=1, stroke=0)
+            c.setFillColor(colors.black)
+            c.setFont("Helvetica", 12)
+            c.drawString(60, y, f"{label}: {value}")
+            y -= 20
+            bg = not bg
+
+    # Graph Section
+    y -= 30
+    if y < 300:
+        c.showPage()
+        y = height - 80
+
+    c.setFont("Helvetica-Bold", 14)
+    c.setFillColor(colors.black)
+    c.drawString(50, y, "Visualizations")
+    y -= 15
+    c.line(50, y, width - 50, y)
+    y -= 30
+
+    try:
+        img = Image.open(graph_path)
+        iw, ih = img.size
+        aspect = ih / iw
+        new_width = width - 100
+        new_height = new_width * aspect
+
+        if new_height > y - 50:
+            new_height = y - 50
+            new_width = new_height / aspect
+
+        c.drawImage(ImageReader(img), 50, y - new_height, width=new_width, height=new_height)
+        y -= new_height + 20
+    except Exception as e:
+        c.setFillColor(colors.red)
+        c.drawString(50, y, f"[Error loading graph: {e}]")
+        y -= 20
+
+    # AI Insights Page (if provided)
+    if ai_insights:
+        c.showPage()
+        c.setFillColor(colors.HexColor("#ABC4FF"))
+        c.rect(0, height - 60, width, 60, stroke=0, fill=1)
+        c.setFont("Helvetica-Bold", 18)
+        c.setFillColor(colors.black)
+        c.drawString(50, height - 40, "AI Analysis")
+        y = height - 100
+        c.setFont("Helvetica", 12)
+        wrapped = simpleSplit(ai_insights, "Helvetica", 12, width - 100)
+
+        for line in wrapped:
+            if y < 50:
+                c.showPage()
+                y = height - 100
+            c.drawString(50, y, line)
+            y -= 15
+
+    c.setFont("Helvetica-Oblique", 9)
+    c.setFillColor(colors.grey)
+    c.drawString(50, 30, "© EHS Dashboard Report")
+    c.setTitle("EHS Dashboard Report")
+    c.save()
+
+
+def combine_dashboard_graphs(save_path: str):
+    chrome_path = "D:/Tools/chromedriver/chromedriver.exe"
+    chrome_service = ChromeService(executable_path=chrome_path)
+
+    options = Options()
+    options.add_argument("--headless=new")  # Use newer headless mode
+    options.add_argument("--disable-gpu")
+    options.add_argument("--window-size=2400,1800")
+
+    # Create a webdriver manually
+    driver = webdriver.Chrome(service=chrome_service, options=options)
+
+    fig1, fig2 = get_incident_overview_figures()          # returns 2 Bokeh figures
+    fig3, fig4 = get_department_overview_figures()
+    fig5, fig6 = get_incident_type_overview_figures()
+
+    # 2. Combine them in a grid
+    grid = gridplot([[fig1, fig2], [fig3, fig4], [fig5, fig6]], toolbar_location= None , sizing_mode="fixed")
+
+    # 3. Export to a temporary file
+    temp_path = os.path.join("static", "images", "_temp_grid.png")
+    try:
+        export_png(grid, filename=temp_path,webdriver=driver)
+    except Exception as e:
+        raise RuntimeError(f"Failed to export Bokeh grid to PNG: {e}")
+
+    # 4. Resize or convert to final format
+    img = Image.open(temp_path)
+    img.save(save_path)
+    os.remove(temp_path)
