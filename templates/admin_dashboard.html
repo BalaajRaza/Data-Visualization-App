@@ -101,9 +101,10 @@
             margin-bottom: 20px;
           "
         >
-          <button class="clear-btn" onclick="getInsights()">
+          <button class="clear-btn" onclick=openInsightsPage()>
             Get Insights
           </button>
+
           <button onclick="openReportModal()" class="clear-btn">
             Generate Report
           </button>
@@ -475,6 +476,37 @@
           container.parentNode.replaceChild(newContainer, container);
         }
       }
+
+      function openInsightsPage(){
+        window.open("/insights" , "_blank");
+      }
+
+      document.addEventListener("DOMContentLoaded", function () {
+        const reportForm = document.getElementById("report-form");
+        const insightsCheckbox = document.getElementById("include_insights");
+
+        reportForm.addEventListener("submit", function (e) {
+          if (!insightsCheckbox.checked) return; // allow form to submit normally
+
+          e.preventDefault(); // prevent form from submitting
+
+          fetch("/check_insights_status")
+            .then((res) => res.json())
+            .then((data) => {
+              if (data.status === "done" && data.insights.trim()) {
+                reportForm.submit(); // allow submission if insights are ready
+              } else {
+                alert("Please generate AI insights first before including them in the report.");
+              }
+            })
+            .catch((err) => {
+              console.error("Error checking insights:", err);
+              alert("An error occurred checking insights status.");
+            });
+        });
+      });
+
+
     </script>
   </body>
 </html>

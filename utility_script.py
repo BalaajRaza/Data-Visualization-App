@@ -1,23 +1,16 @@
 from bokeh.plotting import figure
-from bokeh.embed import components
 from bokeh.models import ColumnDataSource, HoverTool , Legend , FactorRange , LegendItem , LabelSet
 from bokeh.palettes import Category10, Category20
-from bokeh.transform import factor_cmap
 from bokeh.io.export import export_png
 from bokeh.layouts import gridplot
-from bokeh.plotting import output_file, save
 from bokeh.resources import INLINE
 from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.webdriver import WebDriver
-from bokeh.io.webdriver import create_chromium_webdriver
-import tempfile
 from selenium import webdriver
 from PIL import Image
+import requests
 import os
-import re
 
-import numpy as np
 import pandas as pd
 from math import pi
 from bokeh.transform import cumsum
@@ -30,7 +23,6 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.utils import ImageReader, simpleSplit
-from reportlab.lib.units import cm
 from PIL import Image
 from datetime import datetime
 
@@ -43,6 +35,8 @@ filter_state = {
     "injured": [],
     "days_lost": []
 }
+
+insights = None
 
 def get_filter_options():
     conn = get_connection()
@@ -994,3 +988,77 @@ def combine_dashboard_graphs(save_path: str):
     img = Image.open(temp_path)
     img.save(save_path)
     os.remove(temp_path)
+
+
+# ---------- INSIGHTS ----------- #
+
+def run_ollama(prompt):
+    try:
+        response = requests.post(
+            "http://localhost:11434/api/generate",
+            json={
+                "model": "mistral",
+                "prompt": prompt,
+                "stream": False
+            }
+        )
+        return response.json().get("response", "").strip()
+    except Exception as e:
+        print(f"[ERROR] Ollama call failed: {e}")
+        return None
+
+
+def generate_insights_prompt():
+    prompt = """
+I am providing you some data from a dashboard to visualize incidents data from a mine. The data is about the incidents being reported
+in EHS (Emergency Health System) of a coal mine. You have to understand the patterns in data and perform the told analysis.
+"""
+    prompt += f"\nApplied Filters = {filter_state}\n\n"
+
+    prompt += "--KPIs Data--\n"
+    incident_overview = incidents_overview_kpi_data()
+    departments_overview = departments_overview_kpis()
+    incident_types_overview = incident_types_overview_kpis()
+
+    prompt += "Incident Overview KPIs:"
+    for key, value in incident_overview.items():
+        prompt += f"{key.replace('_', ' ').capitalize()}: {value}\n"
+    
+    prompt += "\nDepartments Overview KPIs:"
+    for key, value in departments_overview.items():
+        prompt += f"{key.replace('_', ' ').capitalize()}: {value}\n"
+    
+    prompt +="\nIncident Type Overview KPIs:"
+    for key,value in incident_types_overview.items():
+        prompt += f"{key.replace('_', ' ').capitalize()}: {value}\n"
+
+    prompt += "\n-- Graphs Data --\n"
+    prompt += f"\nIncidents Over Time Data (YEAR-MONTH , NO.of INCIDENTS): {(fetch_incidents_over_time_data())}\n\n"
+    prompt += f"Injuries Over Time Data (YEAR-MONTH , NO.of INJURED , NO.of NOT INJURED): {fetch_injury_split_over_time_data()}\n\n"
+
+    prompt += f"Incidents by Department Data ((DEPARTMENT , NO. OF INCIDENTS)): {fetch_incidents_by_department()}\n\n"
+    prompt += f"Department vs Severity Data ((DEPARTMENT , SEVERITY , NO. OF INCIDENTS)): {fetch_department_vs_severity()}\n\n"
+
+    prompt += f"Incidents by Incident Type Data ((INCIDENT TYPE , NO. OF INCIDENTS)): {fetch_incidents_by_type()}\n\n"
+    prompt += f"Incident vs Severity Data ((INCIDENT TYPE , SEVERITY , NO. OF INCIDENTS)): {fetch_incident_type_vs_severity()}\n\n"
+
+    prompt += """
+Using all this data generate Intelligent Meaningful Insights and suggestions according to the data or incidents happening.
+Keep the insights and suggestions to the point. Format:
+
+1. Insights:
+
+2. Suggestions:
+
+Add line spacing between sections. Avoid stories. Be concise.
+"""
+    return prompt
+
+
+def generate_insights_from_mistral():
+    global insights_cache
+    prompt = generate_insights_prompt()
+    response = run_ollama(prompt)
+    if response:
+        insights_cache = response
+    return response

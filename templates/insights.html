@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>AI Insights</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #ffffff;
+      color: #111111;
+      padding: 40px;
+      margin: 0;
+    }
+
+    h2 {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    #status {
+      font-size: 18px;
+      text-align: center;
+      margin-bottom: 20px;
+      color: #444;
+    }
+
+    #insightsBox {
+      white-space: pre-wrap;
+      background-color: #f4f4f4;
+      border: 1px solid #ccc;
+      padding: 20px;
+      margin: 0 auto 20px;
+      max-width: 800px;
+      display: none;
+      border-radius: 6px;
+      font-size: 16px;
+    }
+
+    .button-container {
+      text-align: center;
+      display: none;
+    }
+
+    .copy-btn {
+      padding: 10px 20px;
+      background-color: #111111;
+      color: #ffffff;
+      border: none;
+      border-radius: 4px;
+      font-size: 15px;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+
+    .copy-btn:hover {
+      background-color: #333333;
+    }
+  </style>
+</head>
+<body>
+  <h2>AI Insights Generation</h2>
+  <div id="status">Starting...</div>
+  <pre id="insightsBox"></pre>
+
+  <div class="button-container">
+    <button class="copy-btn" onclick="copyInsights()">Copy to Clipboard</button>
+  </div>
+
+  <script>
+    function startAndCheckStatus() {
+      fetch("/generate_insights", { method: "POST" })
+        .then(() => {
+          checkStatus();
+        })
+        .catch(() => {
+          document.getElementById("status").innerText = "Failed to start insights generation.";
+        });
+    }
+
+    function checkStatus() {
+      fetch("/insights_progress")
+        .then(res => res.json())
+        .then(data => {
+          if (data.status === "pending") {
+            document.getElementById("status").innerText = "Generating insights, please wait...";
+            setTimeout(checkStatus, 5000);
+          } else {
+            document.getElementById("status").style.display = "none";
+            const box = document.getElementById("insightsBox");
+            box.style.display = "block";
+            box.textContent = data.insights || "No insights available.";
+            document.querySelector('.button-container').style.display = "block";
+          }
+        })
+        .catch(() => {
+          document.getElementById("status").innerText = "Error checking status.";
+        });
+    }
+
+    function copyInsights() {
+      const text = document.getElementById("insightsBox").textContent;
+      navigator.clipboard.writeText(text)
+        .then(() => {
+          alert("Insights copied to clipboard.");
+        })
+        .catch(() => {
+          alert("Failed to copy insights.");
+        });
+    }
+
+    startAndCheckStatus();
+  </script>
+</body>
+</html>

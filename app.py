@@ -7,11 +7,10 @@ from utility_script import *
 import io
 from fpdf import FPDF
 from bokeh.embed import json_item
-from bokeh.io import output_file
-from bokeh.plotting import show
-from bokeh.document import document
-import datetime
 import json
+import threading
+
+
 
 app = Flask(__name__)
 
@@ -314,7 +313,13 @@ def generate_report():
     # AI Insights
     insights_text = ""
     if include_insights:
-        insights_text = "This is dummy text for AI Insights "#get_ai_insights()  # From a session variable or storage
+        if INSIGHTS_RESULT["status"] != "done" or not INSIGHTS_RESULT["insights"].strip():
+            # Return a JSON error response (AJAX-safe)
+            return jsonify({
+                "success": False,
+                "message": "AI Insights not generated yet. Please generate insights first."
+            }), 400
+        insights_text = INSIGHTS_RESULT["insights"]
 
     # Generate PDF to in-memory stream
     file_stream = io.BytesIO()
@@ -729,6 +734,38 @@ def delete_user(user_id):
         cursor.close()
         conn.close()
 
+
+# ----------- Insights -----------
+
+INSIGHTS_RESULT = {"status": "idle", "insights": ""}
+
+
+@app.route('/insights')
+def insights_status():
+    return render_template('insights.html')
+
+def run_insights_generation():
+    INSIGHTS_RESULT["status"] = "pending"
+    insights = generate_insights_from_mistral()
+    INSIGHTS_RESULT["status"] = "done"
+    INSIGHTS_RESULT["insights"] = insights
+
+@app.route('/generate_insights', methods=['POST'])
+def trigger_insights():
+    if INSIGHTS_RESULT["status"] != "pending":
+        threading.Thread(target=run_insights_generation).start()
+    return jsonify({"started": True})
+
+@app.route('/insights_progress')
+def get_insights_status():
+    return jsonify(INSIGHTS_RESULT)
+
+@app.route('/check_insights_status')
+def check_insights_status():
+    return jsonify({
+        "status": INSIGHTS_RESULT.get("status"),
+        "insights": INSIGHTS_RESULT.get("insights", "")
+    })
 
 # ----------- Logout -----------
 

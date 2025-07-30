@@ -6,8 +6,10 @@
       rel="stylesheet"
       href="{{ url_for('static', filename='user_dashboard.css') }}"
     />
-    <script src="https://cdn.bokeh.org/bokeh/release/bokeh-3.7.3.min.css"></script>
-    
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/bokeh/3.7.3/bokeh.min.css"
+      rel="stylesheet"
+    />
     <script src="https://cdn.bokeh.org/bokeh/release/bokeh-3.7.3.min.js"></script>
     <script src="https://cdn.bokeh.org/bokeh/release/bokeh-widgets-3.7.3.min.js"></script>
     <script src="https://cdn.bokeh.org/bokeh/release/bokeh-tables-3.7.3.min.js"></script>
@@ -97,9 +99,10 @@
             margin-bottom: 20px;
           "
         >
-          <button class="clear-btn" onclick="getInsights()">
+          <button class="clear-btn" onclick=openInsightsPage()>
             Get Insights
           </button>
+
           <button onclick="openReportModal()" class="clear-btn">
             Generate Report
           </button>
@@ -333,6 +336,10 @@
       Bokeh.embed.embed_item({{ type_donut_json|safe }});
       Bokeh.embed.embed_item({{ type_bar_json|safe }});
     </script>
+    <script src="https://code.jquery.com/jquery-3.2.1.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"></script>
+    <script src="https://cdn.datatables.net/1.10.16/js/jquery.dataTables.min.js" type="text/javascript"></script>
 
     <script>
       Bokeh.set_log_level("debug");
@@ -345,81 +352,68 @@
         document.getElementById("report-modal").style.display = "none";
       }
 
+      
       function applyFilters() {
-        const form = document.getElementById("filter-form");
-        const formData = new FormData(form);
+        const form = $('#filter-form');
+        const formData = form.serializeArray();
         const filters = {};
 
-        // Extract filters from form
-        for (const [key, value] of formData.entries()) {
-            if (!filters[key]) filters[key] = [];
-            filters[key].push(value);
-          }
+        formData.forEach(({ name, value }) => {
+          if (!filters[name]) filters[name] = [];
+          filters[name].push(value);
+        });
 
-          // Send filters via AJAX
-          fetch("/update_dashboard", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(filters),
-          })
-            .then((res) => res.json())
-            .then((data) => {
-              // Update filters and KPIs
-              updateAppliedFilters(data.applied_filters);
-              updateKPI("total-incidents", data.overview_kpis.total_incidents);
-              updateKPI("total-injuries", data.overview_kpis.total_injuries);
-              updateKPI("total-days-lost", data.overview_kpis.total_days_lost);
-              updateKPI("dept-most", data.dept_kpis.most_incidents_department);
-              updateKPI("dept-injuries", data.dept_kpis.most_injuries_department);
-              updateKPI("type-most", data.type_kpis.most_common_type);
-              updateKPI("type-severe", data.type_kpis.most_severe_type);
-              updateDepartmentDistribution(data.dept_kpis.total_by_department);
-              updateIncidentTypeDistribution(data.type_kpis.total_by_type);
+        $.ajax({
+          url: "/update_dashboard",
+          type: "POST",
+          contentType: "application/json",
+          data: JSON.stringify(filters),
+          success: function (data) {
+            // Update KPIs
+            updateAppliedFilters(data.applied_filters);
+            updateKPI("total-incidents", data.overview_kpis.total_incidents);
+            updateKPI("total-injuries", data.overview_kpis.total_injuries);
+            updateKPI("total-days-lost", data.overview_kpis.total_days_lost);
+            updateKPI("dept-most", data.dept_kpis.most_incidents_department);
+            updateKPI("dept-injuries", data.dept_kpis.most_injuries_department);
+            updateKPI("type-most", data.type_kpis.most_common_type);
+            updateKPI("type-severe", data.type_kpis.most_severe_type);
+            updateDepartmentDistribution(data.dept_kpis.total_by_department);
+            updateIncidentTypeDistribution(data.type_kpis.total_by_type);
 
-              // Clear existing Bokeh state
-              for (const key in Bokeh.index) {
-                if (Bokeh.index.hasOwnProperty(key)) {
-                  delete Bokeh.index[key];
-                }
-              }
-              Bokeh.index = {};
+            // Clear old charts
+            const plotDivs = [
+              "incident-chart",
+              "injury-chart",
+              "dept-donut",
+              "dept-bar",
+              "type-donut",
+              "type-bar",
+            ];
 
-              // Reset plot containers (hide → reflow → show)
-              const plotDivs = [
-                "incident-chart",
-                "injury-chart",
-                "dept-donut",
-                "dept-bar",
-                "type-donut",
-                "type-bar",
-              ];
-
-              plotDivs.forEach((id) => {
-                const el = document.getElementById(id);
-                el.innerHTML = "";            // Clear previous plot
-                el.style.display = "none";    // Hide
-                void el.offsetWidth;          // Force reflow
-                el.style.display = "block";   // Show
-              });
-
-              // Log debug (optional)
-              if (data.incident_fig1) {
-                console.log("✅ New incident_fig1 received, re-embedding...");
-              }
-
-              // Re-embed all plots using requestAnimationFrame x2
-              requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                  Bokeh.embed.embed_item(data.incident_fig1, "incident-chart");
-                  Bokeh.embed.embed_item(data.incident_fig2, "injury-chart");
-                  Bokeh.embed.embed_item(data.dept_donut, "dept-donut");
-                  Bokeh.embed.embed_item(data.dept_bar, "dept-bar");
-                  Bokeh.embed.embed_item(data.type_donut, "type-donut");
-                  Bokeh.embed.embed_item(data.type_bar, "type-bar");
-                });
-              });
+            plotDivs.forEach((id) => {
+              const el = document.getElementById(id);
+              el.innerHTML = "";
+              el.style.display = "none";
+              void el.offsetWidth;
+              el.style.display = "block";
             });
-        }
+
+            // Now embed new plots
+            setTimeout(() => {
+              Bokeh.embed.embed_item(data.incident_fig1, "incident-chart");
+              Bokeh.embed.embed_item(data.incident_fig2, "injury-chart");
+              Bokeh.embed.embed_item(data.dept_donut, "dept-donut");
+              Bokeh.embed.embed_item(data.dept_bar, "dept-bar");
+              Bokeh.embed.embed_item(data.type_donut, "type-donut");
+              Bokeh.embed.embed_item(data.type_bar, "type-bar");
+            }, 50); // let the DOM fully stabilize
+          },
+          error: function (err) {
+            console.error("AJAX error:", err);
+          }
+        });
+      }
 
 
       function clearFilters() {
@@ -480,6 +474,37 @@
           container.parentNode.replaceChild(newContainer, container);
         }
       }
+
+      function openInsightsPage(){
+        window.open("/insights" , "_blank");
+      }
+
+      document.addEventListener("DOMContentLoaded", function () {
+        const reportForm = document.getElementById("report-form");
+        const insightsCheckbox = document.getElementById("include_insights");
+
+        reportForm.addEventListener("submit", function (e) {
+          if (!insightsCheckbox.checked) return; // allow form to submit normally
+
+          e.preventDefault(); // prevent form from submitting
+
+          fetch("/check_insights_status")
+            .then((res) => res.json())
+            .then((data) => {
+              if (data.status === "done" && data.insights.trim()) {
+                reportForm.submit(); // allow submission if insights are ready
+              } else {
+                alert("Please generate AI insights first before including them in the report.");
+              }
+            })
+            .catch((err) => {
+              console.error("Error checking insights:", err);
+              alert("An error occurred checking insights status.");
+            });
+        });
+      });
+
+
     </script>
   </body>
 </html>
